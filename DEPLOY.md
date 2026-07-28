@@ -34,9 +34,35 @@ git push -u origin main
 
 ### 無料プランの注意（コールドスタート）
 - 無料Webサービスは **約15分アクセスが無いとスリープ**し、次アクセス時に **約50秒** 起動待ちが出ます。
-- 常時起動にするには **Starter プラン（約$7/月）** にアップグレード（Renderのサービス設定から）。
-- 無料のまま眠らせたくない場合の裏技：外部の無料cron（例 cron-job.org）から
-  `https://<あなたのURL>/health` を **10分おき** に叩くとスリープしにくくなります。
+- 常時起動にするには **Starter プラン（約$7/月）** にアップグレードでも可（Renderのサービス設定から）。
+- ただし本リポジトリには **無料のまま眠らせないキープアライブ機構を同梱済み**（下記）。
+
+---
+
+## 無料のまま眠らせない（キープアライブ設定）
+
+### 方法A：GitHub Actions（同梱済み・追加登録なし）★推奨
+リポジトリに `.github/workflows/keepalive.yml` を同梱済み。10分おきに `/health` を叩いて起こし続けます。
+デプロイ後に **URLを1つ登録するだけ**：
+
+1. GitHub のリポジトリ → **Settings** → **Secrets and variables** → **Actions** → **Variables** タブ
+2. **New repository variable**
+   - Name: `RENDER_URL`
+   - Value: `https://<あなたのアプリ>.onrender.com`（末尾スラッシュ無し）
+3. 保存 → **Actions** タブで `keep-alive` を選び **Run workflow** で即時テスト（緑になればOK）
+
+以後は自動で10分おきにpingします。手動で止めたい時は Actions タブでワークフローを Disable。
+
+> 注意：GitHub無料枠のスケジュールは負荷次第で数分ずれることがあります。また **リポジトリが60日間まったく更新されないとスケジュールが自動停止** します（時々コミットするか、下の方法Bを併用）。
+
+### 方法B：cron-job.org（外部・より正確）
+より時間に正確に起こしたい場合：
+
+1. https://cron-job.org に無料登録
+2. Create cronjob → URL に `https://<あなたのアプリ>.onrender.com/health`
+3. 実行間隔を **Every 10 minutes** に設定 → 保存
+
+方法AとBは併用可能（どちらか一方でも十分）。どちらも完全無料です。
 
 ---
 

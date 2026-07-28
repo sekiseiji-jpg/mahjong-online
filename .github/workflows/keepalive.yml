@@ -1,0 +1,25 @@
+name: keep-alive
+
+# 無料プラン(Render等)がスリープしないよう、/health を定期的に叩いて起こし続ける。
+# デプロイ後に GitHub のリポジトリ設定で変数 RENDER_URL を登録するだけで有効になる:
+#   Settings → Secrets and variables → Actions → Variables → New repository variable
+#   Name: RENDER_URL   Value: https://<あなたのアプリ>.onrender.com   (末尾スラッシュ無し)
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'   # 10分おき(UTC基準・無料枠のため多少ずれることあり)
+  workflow_dispatch:          # 手動実行ボタンも用意
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /health to keep the service awake
+        run: |
+          URL="${{ vars.RENDER_URL }}"
+          if [ -z "$URL" ]; then
+            echo "::warning::リポジトリ変数 RENDER_URL が未設定です。設定するとping開始します。"
+            exit 0
+          fi
+          echo "ping: $URL/health"
+          curl -fsS --max-time 40 "$URL/health" && echo "  <- ok" || echo "::warning::ping失敗(起動中/スリープ復帰待ちの可能性)"
