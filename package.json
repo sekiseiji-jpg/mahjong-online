@@ -1,0 +1,18 @@
+{
+  "name": "mahjong-online",
+  "version": "0.1.0",
+  "private": true,
+  "description": "四人打ちリーチ麻雀 — オンライン対戦(サーバ権威型 / 自動マッチング / ルーム / 席の人間・CPU切替)",
+  "type": "commonjs",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "vendor": "cp ../index.html server/game.html && cp ../麻雀牌.png public/tiles.png 2>/dev/null || true",
+    "test:engine": "node server/test-engine.js",
+    "test:table": "node server/test-table.js",
+    "test:human": "node server/test-human.js",
+    "start": "node server/index.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

@@ -1,0 +1,12 @@
+# Render 用ブループリント。この online/ フォルダをそのままリポジトリのルートとして
+# GitHub にプッシュし、Render で New → Blueprint → そのリポジトリを選ぶだけ。
+# WebSocket(wss) は Render の HTTPS 終端で自動対応(コード側で ws/wss を自動切替)。
+services:
+  - type: web
+    name: mahjong-online
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server/index.js
+    healthCheckPath: /health
+    autoDeploy: true
