@@ -48,3 +48,4 @@ node server/test-table.js   # 全CPUで対局が最後まで進むか
 ## 今後
 - インターネット公開用のホスティング(Render/Fly.io 等)と wss(TLS)
 - 再接続時の席復帰、観戦、ルーム/フレンド対戦、ネイティブ(Capacitor)化
+# mahjong-online
