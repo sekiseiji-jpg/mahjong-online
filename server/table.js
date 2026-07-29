@@ -19,7 +19,7 @@ class Table {
       level: 'normal', cpuDelay: 500, reactWindow: 8000, nextDelay: 6000, reactDelay: 300,
     }, opts);
     this.seats = [0, 1, 2, 3].map(i => ({
-      seat: i, controller: 'cpu', clientId: null, name: 'CPU' + (i + 1), connected: false, ready: false,
+      seat: i, controller: 'cpu', clientId: null, name: 'CPU' + (i + 1), connected: false, ready: false, pid: null,
     }));
     this.hostId = null;
     this.phase = 'lobby';               // lobby | playing | handEnd | gameOver
@@ -41,22 +41,41 @@ class Table {
   dbg(...a) { if (this.opts.debug) console.error('[dbg]', ...a); }
 
   // ---- 席の割当/切替 ----
-  seatController(seat, controller, clientId, name) {
+  seatController(seat, controller, clientId, name, pid) {
     const s = this.seats[seat];
     s.controller = controller;
     s.clientId = clientId || null;
     s.connected = controller === 'human' ? true : false;
+    if (controller === 'human' && pid) s.pid = pid;
     if (name) s.name = name;
     else if (controller === 'cpu') s.name = 'CPU' + (seat + 1);
     this.pushState();
   }
-  // 空いているCPU席に人間が着席(後から参加)
-  claimSeat(clientId, name) {
-    let seat = this.seats.findIndex(s => s.controller === 'cpu');
+  // 空いているCPU席に人間が着席(後から参加)。離席者の復帰用席(pidあり)より、
+  // 純粋なCPU席(pidなし)を優先して割り当てる。
+  claimSeat(clientId, name, pid) {
+    let seat = this.seats.findIndex(s => s.controller === 'cpu' && !s.pid);
+    if (seat < 0) seat = this.seats.findIndex(s => s.controller === 'cpu');
     if (seat < 0) return -1;
-    this.seatController(seat, 'human', clientId, name);
+    this.seatController(seat, 'human', clientId, name, pid);
     if (this.hostId == null) this.hostId = clientId;
     // 進行がその席の入力待ちなら、人間に選択を促す
+    this._maybePromptSeat(seat);
+    return seat;
+  }
+  // 離席(CPU化)した自分の席に復帰。pid一致のCPU席を人間に戻す。
+  reclaimSeat(pid, clientId, name) {
+    if (this.phase === 'gameOver') return -1;
+    const seat = this.seats.findIndex(s => s.controller === 'cpu' && s.pid && s.pid === pid);
+    if (seat < 0) return -1;
+    const s = this.seats[seat];
+    s.controller = 'human';
+    s.clientId = clientId;
+    s.connected = true;
+    if (name) s.name = name;
+    if (this.hostId == null) this.hostId = clientId;
+    this.broadcast({ t: 'seatChange', seat, controller: 'human', name: s.name });
+    this.pushState();
     this._maybePromptSeat(seat);
     return seat;
   }

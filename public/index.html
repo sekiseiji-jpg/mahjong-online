@@ -232,6 +232,9 @@ function faceShort(t){ if(t>=27)return HONOR[t-27]; return (t%9+1)+["m","p","s"]
 
 // ---- WebSocket ----
 let ws, myId=null, myTable=null, mySeat=-1, state=null, pendingReact=null, myOptions=null, myRoomCode=null, isSpectator=false;
+// 端末ごとの永続ID(再接続で席に復帰するため)
+const PID=(function(){ try{ let p=localStorage.getItem("mj_pid"); if(!p){ p=(self.crypto&&crypto.randomUUID)?crypto.randomUUID():(Date.now()+"-"+Math.random().toString(36).slice(2)); localStorage.setItem("mj_pid",p);} return p; }catch(e){ return "anon"+Math.random(); } })();
+let sessionPw=null, _pwTry=null, everJoined=false;
 function connect(){
   const proto=location.protocol==="https:"?"wss":"ws";
   ws=new WebSocket(proto+"://"+location.host);
@@ -275,12 +278,13 @@ Voice.init(); setMuteBtn();
 
 function handle(m){
   switch(m.t){
-    case "hello": myId=m.id; if(!m.needAuth) showLobby(); else document.getElementById("pwInput").focus(); break;
-    case "authOk": showLobby(); break;
+    case "hello": myId=m.id; if(!m.needAuth){ if(everJoined) sendWS({t:"rejoin",pid:PID}); else showLobby(); } else if(sessionPw){ sendWS({t:"auth",password:sessionPw}); } else document.getElementById("pwInput").focus(); break;
+    case "authOk": if(_pwTry) sessionPw=_pwTry; if(everJoined){ const nm=(localStorage.getItem("mj_name")||"").trim(); if(nm) sendWS({t:"setName",name:nm}); sendWS({t:"rejoin",pid:PID}); } else showLobby(); break;
     case "authFail": gateFail(m.remaining); break;
     case "locked": gateLocked(m.seconds); break;
+    case "rejoinFail": isSpectator=false; showLobby(); break;
     case "lobby": renderLobby(m); break;
-    case "joined": mySeat=m.seat; myTable=m.tableId; myRoomCode=m.roomCode||null; document.getElementById("lobby").classList.remove("show"); document.getElementById("board").style.display=""; document.getElementById("roomLbl").textContent=myRoomCode?("🔑"+myRoomCode):""; if(myRoomCode) flash("合言葉: "+myRoomCode+" (共有して友人を招待)",3000); break;
+    case "joined": everJoined=true; isSpectator=false; mySeat=m.seat; myTable=m.tableId; myRoomCode=m.roomCode||null; document.getElementById("lobby").classList.remove("show"); document.getElementById("board").style.display=""; document.getElementById("seatBtn").style.display=""; document.getElementById("roomLbl").textContent=myRoomCode?("🔑"+myRoomCode):""; if(m.mode==="rejoin") flash("席に復帰しました",2000); else if(myRoomCode) flash("合言葉: "+myRoomCode+" (共有して友人を招待)",3000); break;
     case "spectating": isSpectator=true; document.getElementById("lobby").classList.remove("show"); document.getElementById("board").style.display=""; document.getElementById("roomLbl").textContent="👀 観戦中"; document.getElementById("seatBtn").style.display="none"; flash("👀 観戦モード",2000); break;
     case "error": document.getElementById("lobbyErr").textContent=m.msg; break;
     case "state": state=m.state; mySeat=state.seat; render(); break;
@@ -306,7 +310,7 @@ function onHandEndSound(r){ if(!r)return;
 
 // ---- 合言葉(パスワード)ゲート ----
 function showLobby(){ document.getElementById("gate").classList.remove("show"); document.getElementById("gateErr").textContent=""; if(lockTimer){clearInterval(lockTimer);lockTimer=null;} document.getElementById("lobby").classList.add("show"); const n=document.getElementById("nameInput"); if(n) n.focus(); }
-function submitPw(){ const v=document.getElementById("pwInput").value; if(!v){ document.getElementById("gateErr").textContent="合言葉を入力してください。"; return; } sendWS({t:"auth",password:v}); }
+function submitPw(){ const v=document.getElementById("pwInput").value; if(!v){ document.getElementById("gateErr").textContent="合言葉を入力してください。"; return; } _pwTry=v; sendWS({t:"auth",password:v}); }
 function gateFail(remaining){ const el=document.getElementById("gateErr"); el.textContent="合言葉が違います。あと "+remaining+" 回間違えると10分間ロックされます。"; const p=document.getElementById("pwInput"); p.value=""; p.focus(); }
 let lockTimer=null;
 function gateLocked(seconds){
@@ -333,8 +337,8 @@ function renderLobby(m){
     `<span style="display:inline-flex;align-items:center;gap:.5vmin;margin:.4vmin .6vmin">卓${String(t.id).replace(/^t/,'')}(${t.humans}人) <button class="abtn" style="font-size:1.5vmin;padding:.3vmin 1vmin;box-shadow:0 2px 0 #9a7400" onclick="sendWS({t:'spectate',tableId:'${t.id}'})">観戦</button></span>`
   ).join(" ");
 }
-document.getElementById("soloBtn").onclick=()=>{ audioKick(); const n=document.getElementById("nameInput").value.trim(); if(n){sendWS({t:"setName",name:n});saveName();} sendWS({t:"join",mode:"solo",rules:getRules()}); };
-document.getElementById("autoBtn").onclick=()=>{ audioKick(); const n=document.getElementById("nameInput").value.trim(); if(n){sendWS({t:"setName",name:n});saveName();} sendWS({t:"join",mode:"auto"}); };
+document.getElementById("soloBtn").onclick=()=>{ audioKick(); const n=document.getElementById("nameInput").value.trim(); if(n){sendWS({t:"setName",name:n});saveName();} sendWS({t:"join",mode:"solo",rules:getRules(),pid:PID}); };
+document.getElementById("autoBtn").onclick=()=>{ audioKick(); const n=document.getElementById("nameInput").value.trim(); if(n){sendWS({t:"setName",name:n});saveName();} sendWS({t:"join",mode:"auto",pid:PID}); };
 document.getElementById("leaveBtn").onclick=()=>{ sendWS({t:"leave"}); location.reload(); };
 document.getElementById("seatBtn").onclick=showSeatModal;
 document.getElementById("muteBtn").onclick=toggleMute;
@@ -376,8 +380,8 @@ const Stats={
 };
 Stats.render();
 function nameFirst(){ audioKick(); const n=document.getElementById("nameInput").value.trim(); if(n){sendWS({t:"setName",name:n});saveName();} }
-document.getElementById("roomCreateBtn").onclick=()=>{ nameFirst(); sendWS({t:"createRoom",rules:getRules()}); };
-document.getElementById("roomJoinBtn").onclick=()=>{ const code=document.getElementById("roomCodeInput").value.trim().toUpperCase(); if(!code){document.getElementById("lobbyErr").textContent="合言葉を入力してください";return;} nameFirst(); sendWS({t:"joinRoom",code}); };
+document.getElementById("roomCreateBtn").onclick=()=>{ nameFirst(); sendWS({t:"createRoom",rules:getRules(),pid:PID}); };
+document.getElementById("roomJoinBtn").onclick=()=>{ const code=document.getElementById("roomCodeInput").value.trim().toUpperCase(); if(!code){document.getElementById("lobbyErr").textContent="合言葉を入力してください";return;} nameFirst(); sendWS({t:"joinRoom",code,pid:PID}); };
 
 // pos = 画面位置(0下=自分,1右,2上,3左)。server seat -> pos
 function seatToPos(seat){ return (seat - mySeat + 4)%4; }

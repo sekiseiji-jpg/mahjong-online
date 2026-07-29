@@ -137,7 +137,7 @@ function spectate(cli, tableId) {
 }
 
 // 自動マッチング: 空きCPU席のある卓に着席、無ければ新卓を作り開始
-function matchmake(cli, mode, rules) {
+function matchmake(cli, mode, rules, pid) {
   // solo は必ず新卓(1人+CPU3)、auto は既存卓の空きCPU席を優先
   if (mode !== 'solo') {
     for (const rec of tables.values()) {
@@ -145,7 +145,7 @@ function matchmake(cli, mode, rules) {
       const seat = rec.table.seats.findIndex(s => s.controller === 'cpu');
       if (seat >= 0) {
         cli.tableId = rec.id;
-        cli.seat = rec.table.claimSeat(cli.id, cli.name);
+        cli.seat = rec.table.claimSeat(cli.id, cli.name, pid);
         send(cli.ws, { t: 'joined', tableId: rec.id, seat: cli.seat, mode });
         broadcastLobby();
         return;
@@ -154,7 +154,7 @@ function matchmake(cli, mode, rules) {
   }
   const rec = makeTable(sanitizeRules(rules));
   cli.tableId = rec.id;
-  rec.table.seatController(0, 'human', cli.id, cli.name);
+  rec.table.seatController(0, 'human', cli.id, cli.name, pid);
   rec.table.hostId = cli.id;
   cli.seat = 0;
   send(cli.ws, { t: 'joined', tableId: rec.id, seat: 0, mode });
@@ -163,11 +163,11 @@ function matchmake(cli, mode, rules) {
 }
 
 // ルームを作る(合言葉で友人と)
-function createRoom(cli, rules) {
+function createRoom(cli, rules, pid) {
   const code = genRoomCode();
   const rec = makeTable(sanitizeRules(rules), code);
   cli.tableId = rec.id;
-  rec.table.seatController(0, 'human', cli.id, cli.name);
+  rec.table.seatController(0, 'human', cli.id, cli.name, pid);
   rec.table.hostId = cli.id;
   cli.seat = 0;
   send(cli.ws, { t: 'joined', tableId: rec.id, seat: 0, mode: 'room', roomCode: code });
@@ -175,16 +175,47 @@ function createRoom(cli, rules) {
   broadcastLobby();
 }
 // ルームに参加(合言葉)
-function joinRoom(cli, code) {
+function joinRoom(cli, code, pid) {
   code = String(code || '').trim().toUpperCase();
   const rec = findRoom(code);
   if (!rec) { send(cli.ws, { t: 'error', msg: 'その合言葉の部屋が見つかりません' }); return; }
   const seat = rec.table.seats.findIndex(s => s.controller === 'cpu');
   if (seat < 0) { send(cli.ws, { t: 'error', msg: 'この部屋は満席です' }); return; }
   cli.tableId = rec.id;
-  cli.seat = rec.table.claimSeat(cli.id, cli.name);
+  cli.seat = rec.table.claimSeat(cli.id, cli.name, pid);
   send(cli.ws, { t: 'joined', tableId: rec.id, seat: cli.seat, mode: 'room', roomCode: code });
   broadcastLobby();
+}
+// 再接続: pid一致の離席(CPU化)席に復帰
+function rejoin(cli, pid) {
+  if (!pid) { send(cli.ws, { t: 'rejoinFail' }); return; }
+  for (const rec of tables.values()) {
+    if (rec.table.phase === 'gameOver') continue;
+    const seat = rec.table.reclaimSeat(pid, cli.id, cli.name);
+    if (seat >= 0) {
+      cli.tableId = rec.id; cli.seat = seat;
+      send(cli.ws, { t: 'joined', tableId: rec.id, seat, mode: 'rejoin', roomCode: rec.code || undefined });
+      broadcastLobby();
+      return;
+    }
+  }
+  send(cli.ws, { t: 'rejoinFail' });
+}
+
+// 人間が全員切断した卓は即破棄せず、猶予(90秒)を置いて再接続を待つ
+const CLEANUP_GRACE = 90000;
+function maybeCleanupTables() {
+  for (const [tid, rec] of tables) {
+    const anyHuman = rec.table.seats.some(s => s.controller === 'human' && s.connected);
+    if (anyHuman) { if (rec._cleanupTimer) { clearTimeout(rec._cleanupTimer); rec._cleanupTimer = null; } continue; }
+    if (!rec._cleanupTimer) {
+      rec._cleanupTimer = setTimeout(() => {
+        rec._cleanupTimer = null;
+        const stillEmpty = !rec.table.seats.some(s => s.controller === 'human' && s.connected);
+        if (stillEmpty && tables.has(tid)) { rec.table.clearTimers(); tables.delete(tid); broadcastLobby(); }
+      }, CLEANUP_GRACE);
+    }
+  }
 }
 
 function broadcastLobby() {
@@ -211,9 +242,10 @@ wss.on('connection', (ws, req) => {
     const rec = cli.tableId ? tables.get(cli.tableId) : null;
     switch (m.t) {
       case 'setName': cli.name = String(m.name || '').slice(0, 16) || cli.name; break;
-      case 'join': matchmake(cli, m.mode || 'auto', m.rules); break;
-      case 'createRoom': createRoom(cli, m.rules); break;
-      case 'joinRoom': joinRoom(cli, m.code); break;
+      case 'join': if (m.pid) cli.pid = String(m.pid).slice(0, 40); matchmake(cli, m.mode || 'auto', m.rules, cli.pid); break;
+      case 'createRoom': if (m.pid) cli.pid = String(m.pid).slice(0, 40); createRoom(cli, m.rules, cli.pid); break;
+      case 'joinRoom': if (m.pid) cli.pid = String(m.pid).slice(0, 40); joinRoom(cli, m.code, cli.pid); break;
+      case 'rejoin': if (m.pid) cli.pid = String(m.pid).slice(0, 40); rejoin(cli, cli.pid); break;
       case 'action': if (rec) rec.table.action(cli.id, m.act || m); break;
       case 'ready': if (rec) rec.table.ready(cli.id); break;
       case 'setSeat': if (rec) rec.table.hostSetSeat(cli.id, m.seat, m.controller); break;
@@ -237,7 +269,7 @@ wss.on('connection', (ws, req) => {
       case 'leave':
         if (rec) rec.table.disconnectClient(cli.id);
         stopSpectating(cli);
-        cli.tableId = null; cli.seat = -1; broadcastLobby();
+        cli.tableId = null; cli.seat = -1; maybeCleanupTables(); broadcastLobby();
         break;
     }
   });
@@ -247,11 +279,7 @@ wss.on('connection', (ws, req) => {
     if (rec) rec.table.disconnectClient(cli.id);
     stopSpectating(cli);
     clients.delete(id);
-    // 誰も人間がいない gameOver/空卓は破棄
-    for (const [tid, r] of tables) {
-      const anyHuman = r.table.seats.some(s => s.controller === 'human' && s.connected);
-      if (!anyHuman) { r.table.clearTimers(); tables.delete(tid); }
-    }
+    maybeCleanupTables();   // 空卓は猶予後に破棄(再接続を待つ)
     broadcastLobby();
   });
 });
