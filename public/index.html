@@ -213,6 +213,7 @@
   </div>
   <div id="lobbyErr" style="color:#ff8a8a;font-size:1.6vmin;margin-top:1vmin;min-height:1.6vmin"></div>
   <div id="lobbyInfo" style="margin-top:1vmin;font-size:1.7vmin;opacity:.8"></div>
+  <div id="statsLine" style="margin-top:1vmin;font-size:1.6vmin;opacity:.9;border-top:1px solid rgba(255,255,255,.12);padding-top:1vmin"></div>
 </div></div>
 
 <div class="overlay" id="result"><div class="sheet" id="resultSheet"></div></div>
@@ -287,8 +288,8 @@ function handle(m){
     case "call": popCall(m.seat, m.kind); onCallSound(m.seat, m.kind); break;
     case "discard": Sound.discard(); break;
     case "seatChange": flash((m.name||"席")+" 交代"); break;
-    case "handEnd": showResult(m.result); onHandEndSound(m.result); break;
-    case "gameOver": showGameOver(m); break;
+    case "handEnd": showResult(m.result); onHandEndSound(m.result); Stats.recordHand(m.result); break;
+    case "gameOver": showGameOver(m); Stats.recordGame(m); break;
     case "chat": showBubble(m.seat, m.stamp||m.text, m.name, !!m.stamp); break;
     case "handStart": document.getElementById("result").classList.remove("show"); break;
   }
@@ -347,6 +348,25 @@ function getRules(){ const r={
   document.getElementById("rule_kuitan").checked=r.kuitan!==false;
   document.getElementById("rule_tobi").checked=r.tobi!==false;
 } }catch(e){} })();
+
+// ---- 通算成績(順位・和了率・ポイント) localStorage ----
+const Stats={
+  key:"mj_stats",
+  blank(){ return {games:0,r1:0,r2:0,r3:0,r4:0,pt:0,hands:0,wins:0}; },
+  load(){ try{ return Object.assign(this.blank(), JSON.parse(localStorage.getItem(this.key)||"{}")); }catch(e){ return this.blank(); } },
+  save(s){ try{ localStorage.setItem(this.key, JSON.stringify(s)); }catch(e){} },
+  recordHand(result){ if(!result) return; const s=this.load(); s.hands++; if(result.winners && result.winners.some(w=>w.seat===mySeat)) s.wins++; this.save(s); },
+  recordGame(m){ const e=(m.ranking||[]).find(x=>x.seat===mySeat); if(!e) return; const s=this.load(); s.games++; s["r"+e.rank]=(s["r"+e.rank]||0)+1; if(typeof e.pt==="number") s.pt+=e.pt; this.save(s); this.render(); },
+  render(){ const el=document.getElementById("statsLine"); if(!el) return; const s=this.load();
+    if(!s.games){ el.textContent="通算成績: まだありません"; return; }
+    const avg=((s.r1+s.r2*2+s.r3*3+s.r4*4)/s.games).toFixed(2);
+    const top=Math.round(100*s.r1/s.games), ren=Math.round(100*(s.r1+s.r2)/s.games);
+    const wr=s.hands?(100*s.wins/s.hands).toFixed(1):"-";
+    el.innerHTML=`通算 <b>${s.games}</b>戦 ・ 平均順位 <b>${avg}</b> ・ トップ率 ${top}% ・ 連対 ${ren}% ・ 和了率 ${wr}% ・ ポイント <b style="color:${s.pt>=0?'#7fffa0':'#ff8a8a'}">${s.pt>0?"+"+s.pt:s.pt}</b> <a href="#" id="statsReset" style="opacity:.6;margin-left:.8vmin">リセット</a>`;
+    const rb=document.getElementById("statsReset"); if(rb) rb.onclick=(ev)=>{ ev.preventDefault(); if(confirm("通算成績をリセットしますか？")){ this.save(this.blank()); this.render(); } };
+  }
+};
+Stats.render();
 function nameFirst(){ audioKick(); const n=document.getElementById("nameInput").value.trim(); if(n){sendWS({t:"setName",name:n});saveName();} }
 document.getElementById("roomCreateBtn").onclick=()=>{ nameFirst(); sendWS({t:"createRoom",rules:getRules()}); };
 document.getElementById("roomJoinBtn").onclick=()=>{ const code=document.getElementById("roomCodeInput").value.trim().toUpperCase(); if(!code){document.getElementById("lobbyErr").textContent="合言葉を入力してください";return;} nameFirst(); sendWS({t:"joinRoom",code}); };
