@@ -78,6 +78,7 @@
   .discards.left{left:calc(var(--h) + 1vmin);top:50%;transform:translateY(-50%) rotate(90deg);}
   .discards.right{right:calc(var(--h) + 1vmin);top:50%;transform:translateY(-50%) rotate(-90deg);}
   .discards .tile.tsumogiri{opacity:.72;}
+  .discards .tile.rdecl{transform:rotate(90deg);margin:0 .8vmin;}
   .discards .tile.last{box-shadow:0 0 0 2px var(--gold);}
   /* 鳴き */
   .melds{position:absolute;display:flex;gap:4px;z-index:6;}
@@ -349,6 +350,7 @@ function handle(m){
     case "chat": showBubble(m.seat, m.stamp||m.text, m.name, !!m.stamp); break;
     case "voice": handleVoice(m); break;
     case "handStart": document.getElementById("result").classList.remove("show"); replayFrames=[]; break;
+    case "diceDealer": showDiceDealer(m); break;
   }
 }
 function onCallSound(seat,kind){ const pos=seatToPos(seat);
@@ -517,6 +519,7 @@ function render(){
     // discards
     const de=document.querySelector(`.discards[data-pos="${pos}"]`); de.innerHTML="";
     p.discards.forEach((d,i)=>{ let cls=(d.tsumogiri?"tsumogiri":"");
+      if(d.riichi) cls+=" rdecl";   // リーチ宣言牌は横向き
       if(lastDisc && lastDisc.seat===p.seat && d.id===lastDisc.id){ cls+=" last"; if(lastDisc.fresh) cls+=" justnow"; }
       de.append(tileEl(d,{cls})); });
     // melds
@@ -592,6 +595,14 @@ function moveCursorRow(dir){
 function keyHint(k){ return k==="skip"?"Esc":k.toUpperCase(); }
 function btn(label,cls,fn,key){ const b=document.createElement("button"); b.className="abtn "+cls; if(key){ b.dataset.key=key; b.innerHTML=escapeHtml(String(label))+'<span class="kh">['+keyHint(key)+']</span>'; } else b.textContent=label; b.onclick=fn; return b; }
 function flash(t,ms=1400){ const m=document.getElementById("msg"); m.textContent=t; m.classList.add("show"); clearTimeout(flash._t); flash._t=setTimeout(()=>m.classList.remove("show"),ms); }
+// 4人打ち：サイコロで起家(親)決定の演出
+const DICE_FACE=["","⚀","⚁","⚂","⚃","⚄","⚅"];
+function showDiceDealer(m){
+  const d=m.dice||[1,1]; const nm=m.name||"?";
+  const mine=(m.dealer===mySeat);
+  flash(`🎲 ${DICE_FACE[d[0]]||d[0]} ${DICE_FACE[d[1]]||d[1]} ＝ ${m.sum}　起家（親）は ${nm}${mine?" さん＝あなた":" さん"}`, 2600);
+  try{ Sound && Sound.call && Sound.call(); }catch(e){}
+}
 function popCall(seat,kind){ const pos=seatToPos(seat); const b=document.getElementById("board"); const el=document.createElement("div"); el.className="callpop"; el.textContent=kind;
   const map={0:{left:"50%",bottom:"20vmin"},1:{right:"22vmin",top:"50%"},2:{left:"50%",top:"18vmin"},3:{left:"22vmin",top:"50%"}}[pos];
   Object.assign(el.style,{position:"absolute",transform:"translate(-50%,-50%)"},map); b.append(el); setTimeout(()=>el.remove(),900); }

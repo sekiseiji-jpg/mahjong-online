@@ -70,6 +70,26 @@ class Table {
     this._maybePromptSeat(seat);
     return seat;
   }
+  // 4人全員が人間になった瞬間、サイコロで起家(親)を決めて配牌し直す。
+  // 東1局0本場でまだ誰も本格的に打っていない開始直後にのみ発動。1卓につき1回だけ。
+  maybeRollDealer() {
+    if (this._dealerRolled) return false;
+    if (!this.seats.every(s => s.controller === 'human')) return false;
+    if (this.phase !== 'playing') return false;
+    if (this.G.round !== 0 || this.G.honba !== 0) return false;
+    this._dealerRolled = true;
+    const r = () => 1 + Math.floor(Math.random() * 6);
+    const dice = [r(), r()];
+    const sum = dice[0] + dice[1];
+    const dealer = (sum - 1) % 4;   // 出目で起家を決定(席0を仮親として数える)
+    this.clearTimers();
+    this.pending = null;
+    this.G.dealer = dealer;
+    this.broadcast({ t: 'diceDealer', dice, sum, dealer, name: this.seats[dealer].name });
+    // サイコロ演出を見せてから配牌し直す
+    this.after(1800, () => this.newHand());
+    return true;
+  }
   // 離席(CPU化)した自分の席に復帰。pid一致のCPU席を人間に戻す。
   reclaimSeat(pid, clientId, name) {
     if (this.phase === 'gameOver') return -1;

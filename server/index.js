@@ -147,6 +147,7 @@ function matchmake(cli, mode, rules, pid) {
         cli.tableId = rec.id;
         cli.seat = rec.table.claimSeat(cli.id, cli.name, pid);
         send(cli.ws, { t: 'joined', tableId: rec.id, seat: cli.seat, mode });
+        rec.table.maybeRollDealer();   // 4人全員人間ならサイコロで親決め
         broadcastLobby();
         return;
       }
@@ -184,6 +185,7 @@ function joinRoom(cli, code, pid) {
   cli.tableId = rec.id;
   cli.seat = rec.table.claimSeat(cli.id, cli.name, pid);
   send(cli.ws, { t: 'joined', tableId: rec.id, seat: cli.seat, mode: 'room', roomCode: code });
+  rec.table.maybeRollDealer();   // 4人全員人間ならサイコロで親決め
   broadcastLobby();
 }
 // 再接続: pid一致の離席(CPU化)席に復帰
