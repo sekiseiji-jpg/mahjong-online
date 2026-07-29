@@ -53,7 +53,7 @@
   /* 手牌 */
   .hand{position:absolute;display:flex;align-items:flex-end;gap:2px;z-index:7;}
   .hand.bottom{left:50%;bottom:1vmin;transform:translateX(-50%);}
-  .hand.top{left:50%;top:1vmin;transform:translateX(-50%) rotate(180deg);}
+  .hand.top{left:50%;top:calc(var(--topbar-h,5vmin) + .8vmin);transform:translateX(-50%) rotate(180deg);}
   .hand.left{left:calc(var(--h)/2 + 1vmin);top:50%;transform:translate(-50%,-50%) rotate(90deg);}
   .hand.right{right:calc(var(--h)/2 + 1vmin);left:auto;top:50%;transform:translate(50%,-50%) rotate(-90deg);}
   :root{--h:7.4vmin;}
@@ -75,7 +75,7 @@
   .melds{position:absolute;display:flex;gap:4px;z-index:6;}
   .melds .tile{width:3.4vmin;height:4.8vmin;}
   .melds.bottom{right:1vmin;bottom:1vmin;}
-  .melds.top{left:1vmin;top:1vmin;transform:rotate(180deg);}
+  .melds.top{left:1vmin;top:calc(var(--topbar-h,5vmin) + .8vmin);transform:rotate(180deg);}
   .melds.left{left:1vmin;bottom:1vmin;transform:rotate(90deg);transform-origin:left bottom;}
   .melds.right{right:1vmin;top:1vmin;transform:rotate(-90deg);transform-origin:right top;}
   .meld{display:flex;gap:1px;}
@@ -317,8 +317,8 @@ function handle(m){
     case "locked": gateLocked(m.seconds); break;
     case "rejoinFail": isSpectator=false; showLobby(); break;
     case "lobby": renderLobby(m); break;
-    case "joined": everJoined=true; isSpectator=false; mySeat=m.seat; myTable=m.tableId; myRoomCode=m.roomCode||null; document.getElementById("lobby").classList.remove("show"); document.getElementById("board").style.display=""; document.getElementById("seatBtn").style.display=""; document.getElementById("roomLbl").textContent=myRoomCode?("🔑"+myRoomCode):""; if(m.mode==="rejoin") flash("席に復帰しました",2000); else if(myRoomCode) flash("合言葉: "+myRoomCode+" (共有して友人を招待)",3000); break;
-    case "spectating": isSpectator=true; document.getElementById("lobby").classList.remove("show"); document.getElementById("board").style.display=""; document.getElementById("roomLbl").textContent="👀 観戦中"; document.getElementById("seatBtn").style.display="none"; flash("👀 観戦モード",2000); break;
+    case "joined": everJoined=true; isSpectator=false; mySeat=m.seat; myTable=m.tableId; myRoomCode=m.roomCode||null; document.getElementById("lobby").classList.remove("show"); document.getElementById("board").style.display=""; document.getElementById("seatBtn").style.display=""; document.getElementById("roomLbl").textContent=myRoomCode?("🔑"+myRoomCode):""; if(m.mode==="rejoin") flash("席に復帰しました",2000); else if(myRoomCode) flash("合言葉: "+myRoomCode+" (共有して友人を招待)",3000); setTimeout(fitTop,60); break;
+    case "spectating": isSpectator=true; document.getElementById("lobby").classList.remove("show"); document.getElementById("board").style.display=""; document.getElementById("roomLbl").textContent="👀 観戦中"; document.getElementById("seatBtn").style.display="none"; flash("👀 観戦モード",2000); setTimeout(fitTop,60); break;
     case "error": document.getElementById("lobbyErr").textContent=m.msg; break;
     case "state": if(replayMode) break; state=m.state; mySeat=state.seat; render(); if(state.phase==="playing") replayFrames.push(JSON.parse(JSON.stringify(state))); break;
     case "yourTurn": myOptions=m.options; showTurnControls(); Sound.draw(); break;
@@ -562,6 +562,10 @@ function showSeatModal(){
   sh.innerHTML=h; document.getElementById("seatModal").classList.add("show");
 }
 window.sendWS=sendWS;
+// ヘッダーバーの高さを実測し、対面(上)の手牌/鳴きがバーに隠れないよう連動させる
+function fitTop(){ const tb=document.getElementById("topbar"); if(tb&&tb.offsetHeight) document.documentElement.style.setProperty("--topbar-h", tb.offsetHeight+"px"); }
+window.addEventListener("resize",fitTop);
+window.addEventListener("orientationchange",()=>setTimeout(fitTop,200));
 connect();
 // PWA: Service Worker 登録(ホーム画面に追加＆牌画像キャッシュ)
 if("serviceWorker" in navigator){ window.addEventListener("load",()=>{ navigator.serviceWorker.register("sw.js").catch(()=>{}); }); }
