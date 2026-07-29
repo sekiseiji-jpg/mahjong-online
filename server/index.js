@@ -186,6 +186,22 @@ wss.on('connection', (ws, req) => {
       case 'action': if (rec) rec.table.action(cli.id, m.act || m); break;
       case 'ready': if (rec) rec.table.ready(cli.id); break;
       case 'setSeat': if (rec) rec.table.hostSetSeat(cli.id, m.seat, m.controller); break;
+      case 'chat': {
+        if (!rec || cli.seat < 0) break;
+        const now = Date.now();
+        if (cli._lastChat && now - cli._lastChat < 500) break;   // 連投抑制
+        cli._lastChat = now;
+        const stamp = (typeof m.stamp === 'string') ? m.stamp.slice(0, 40) : null;
+        const text = (typeof m.text === 'string') ? m.text.slice(0, 40) : null;
+        if (stamp || text) rec.table.broadcast({ t: 'chat', seat: cli.seat, name: cli.name, stamp, text });
+        break;
+      }
+      case 'rematch': {
+        if (rec && rec.table.phase === 'gameOver' && rec.table.seats.some(s => s.clientId === cli.id)) {
+          rec.table.start(); broadcastLobby();
+        }
+        break;
+      }
       case 'leave':
         if (rec) rec.table.disconnectClient(cli.id);
         cli.tableId = null; cli.seat = -1; broadcastLobby();

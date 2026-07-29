@@ -105,6 +105,25 @@
   .yaku-list li{display:flex;justify-content:space-between;border-bottom:1px dashed rgba(255,255,255,.15);padding:.2vmin 0;}
   .yaku-list .han{color:var(--gold);}
   #status{position:absolute;left:1vmin;bottom:1vmin;z-index:8;font-size:1.4vmin;opacity:.7;}
+  #topbar #muteBtn.off{background:rgba(200,60,60,.3);border-color:rgba(255,120,120,.55);}
+  /* チャット/スタンプ */
+  #chatPanel{position:absolute;left:50%;bottom:1vmin;transform:translateX(-50%);z-index:40;display:none;
+    flex-direction:column;gap:.6vmin;background:rgba(6,32,20,.94);border:1px solid var(--gold);border-radius:12px;
+    padding:1vmin 1.2vmin;max-width:min(94vw,540px);}
+  #chatPanel.show{display:flex;}
+  #stampRow{display:flex;gap:.5vmin;flex-wrap:wrap;justify-content:center;}
+  #stampRow .stamp{font-size:2vmin;font-weight:700;color:#fff;background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.28);border-radius:8px;padding:.5vmin 1vmin;cursor:pointer;white-space:nowrap;}
+  #stampRow .stamp:active{transform:translateY(1px);}
+  #chatInputRow{display:flex;gap:.6vmin;}
+  #chatText{flex:1;font:inherit;font-size:1.9vmin;padding:.5vmin 1vmin;border-radius:8px;border:1px solid #888;min-width:0;}
+  #chatSend{font-size:1.9vmin;padding:.5vmin 1.4vmin;}
+  .bubble{position:absolute;z-index:35;max-width:26vmin;font-size:1.9vmin;font-weight:700;color:#20130a;
+    background:#fff;padding:.5vmin 1.1vmin;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,.45);
+    animation:bpop .25s;pointer-events:none;word-break:break-word;}
+  .bubble .who{display:block;font-size:1.2vmin;font-weight:400;opacity:.6;}
+  .bubble.big{font-size:3vmin;}
+  @keyframes bpop{0%{transform:scale(.5);opacity:0}60%{transform:scale(1.08);opacity:1}100%{transform:scale(1);opacity:1}}
 </style>
 </head>
 <body>
@@ -117,7 +136,7 @@
   <div id="board" style="display:none">
     <div id="topbar">
       <div><span id="roundLbl">東1局</span> <span class="num" id="wallLbl">70</span>枚 <span id="roomLbl" style="color:var(--gold);margin-left:1vmin"></span></div>
-      <div><button id="seatBtn">席</button> <button id="leaveBtn">退出</button></div>
+      <div><button id="chatBtn" title="スタンプ・チャット">💬</button> <button id="muteBtn" title="音のオン/オフ (M)">🔊</button> <button id="seatBtn">席</button> <button id="leaveBtn">退出</button></div>
     </div>
     <div id="center"></div>
     <div class="discards bottom" data-pos="0"></div><div class="discards right" data-pos="1"></div>
@@ -131,6 +150,13 @@
     <div id="controls"></div>
     <div id="msg"></div>
     <div id="status">未接続</div>
+    <div id="chatPanel">
+      <div id="stampRow"></div>
+      <div id="chatInputRow">
+        <input id="chatText" maxlength="40" placeholder="メッセージ (40字まで)">
+        <button id="chatSend" class="abtn">送信</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -187,6 +213,37 @@ function connect(){
 function sendWS(o){ if(ws&&ws.readyState===1) ws.send(JSON.stringify(o)); }
 function setStatus(s){ document.getElementById("status").textContent=s; }
 
+// =========================================================================
+//  効果音 (Web Audioで合成) ＋ 掛け声 (SpeechSynthesis) — 単体版から移植
+// =========================================================================
+let audioMuted = false;
+try{ audioMuted = (localStorage.getItem("mj_muted")==="1"); }catch(e){}
+const Sound = {
+  ctx:null,
+  init(){ const AC=window.AudioContext||window.webkitAudioContext; if(!this.ctx){ if(!AC)return; try{this.ctx=new AC();}catch(e){this.ctx=null;return;} } if(this.ctx.state==="suspended") this.ctx.resume().catch(()=>{}); },
+  tone(freq,dur,{type="sine",gain=.12,at=0,slide=0}={}){ if(audioMuted||!this.ctx)return; const t0=this.ctx.currentTime+at; const o=this.ctx.createOscillator(),g=this.ctx.createGain(); o.type=type;o.frequency.setValueAtTime(freq,t0); if(slide)o.frequency.exponentialRampToValueAtTime(Math.max(40,freq+slide),t0+dur); g.gain.setValueAtTime(0,t0);g.gain.linearRampToValueAtTime(gain,t0+.008);g.gain.exponentialRampToValueAtTime(.0001,t0+dur); o.connect(g).connect(this.ctx.destination);o.start(t0);o.stop(t0+dur+.02); },
+  clack(gain=.16){ if(audioMuted||!this.ctx)return; const len=Math.floor(this.ctx.sampleRate*.045); const buf=this.ctx.createBuffer(1,len,this.ctx.sampleRate); const d=buf.getChannelData(0); for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,6); const src=this.ctx.createBufferSource();src.buffer=buf; const bp=this.ctx.createBiquadFilter();bp.type="bandpass";bp.frequency.value=1900;bp.Q.value=1.1; const g=this.ctx.createGain();g.gain.value=gain; src.connect(bp).connect(g).connect(this.ctx.destination);src.start(); },
+  discard(){ this.clack(.13); }, draw(){ this.clack(.06); },
+  call(){ this.clack(.18); this.tone(320,.12,{type:"triangle",gain:.13,at:.03}); },
+  riichi(){ this.tone(660,.1,{type:"triangle",gain:.13}); this.tone(880,.18,{type:"triangle",gain:.13,at:.1}); },
+  win(){ [523,659,784,1047].forEach((f,i)=>this.tone(f,.3,{type:"triangle",gain:.13,at:i*.09})); },
+  lose(){ this.tone(300,.35,{type:"sawtooth",gain:.1,slide:-160}); },
+  ryuukyoku(){ [440,392,330].forEach((f,i)=>this.tone(f,.25,{type:"sine",gain:.11,at:i*.12})); },
+};
+const Voice = {
+  jaVoices:[], allVoices:[], loaded:false,
+  init(){ if(typeof speechSynthesis==="undefined")return; this.refresh(); try{speechSynthesis.onvoiceschanged=()=>this.refresh();}catch(e){} },
+  refresh(){ if(typeof speechSynthesis==="undefined")return; this.allVoices=speechSynthesis.getVoices()||[]; this.jaVoices=this.allVoices.filter(v=>/^ja(\b|[-_])/i.test(v.lang)); this.loaded=this.allVoices.length>0; },
+  norm(t){ return ({"ダブリー":"ダブルリーチ"})[t]||t; },
+  say(text,pos=0){ if(audioMuted||typeof speechSynthesis==="undefined")return; if(!this.loaded)this.refresh(); const u=new SpeechSynthesisUtterance(this.norm(text)); u.lang="ja-JP"; const list=this.jaVoices.length?this.jaVoices:this.allVoices; if(list.length)u.voice=list[pos%list.length]; u.pitch=[1.15,.85,1.05,.75][pos%4]; u.rate=[1.08,1.0,1.02,.96][pos%4]; u.volume=1; try{speechSynthesis.speak(u);}catch(e){} },
+};
+function audioKick(){ Sound.init(); if(!Voice.loaded) Voice.refresh(); }
+// 最初のユーザー操作で音を有効化(モバイルの自動再生制限対策)
+["pointerdown","keydown","touchstart"].forEach(ev=>window.addEventListener(ev,audioKick,{once:false,passive:true}));
+function setMuteBtn(){ const b=document.getElementById("muteBtn"); if(b){ b.textContent=audioMuted?"🔇":"🔊"; b.classList.toggle("off",audioMuted); } }
+function toggleMute(){ audioMuted=!audioMuted; try{localStorage.setItem("mj_muted",audioMuted?"1":"0");}catch(e){} setMuteBtn(); if(!audioMuted){ audioKick(); Sound.tone(600,.1,{type:"triangle",gain:.12}); } else { try{speechSynthesis.cancel();}catch(e){} } }
+Voice.init(); setMuteBtn();
+
 function handle(m){
   switch(m.t){
     case "hello": myId=m.id; if(!m.needAuth) showLobby(); else document.getElementById("pwInput").focus(); break;
@@ -197,14 +254,24 @@ function handle(m){
     case "joined": mySeat=m.seat; myTable=m.tableId; myRoomCode=m.roomCode||null; document.getElementById("lobby").classList.remove("show"); document.getElementById("board").style.display=""; document.getElementById("roomLbl").textContent=myRoomCode?("🔑"+myRoomCode):""; if(myRoomCode) flash("合言葉: "+myRoomCode+" (共有して友人を招待)",3000); break;
     case "error": document.getElementById("lobbyErr").textContent=m.msg; break;
     case "state": state=m.state; mySeat=state.seat; render(); break;
-    case "yourTurn": myOptions=m.options; showTurnControls(); break;
+    case "yourTurn": myOptions=m.options; showTurnControls(); Sound.draw(); break;
     case "canReact": pendingReact=m; showReactControls(); break;
-    case "call": popCall(m.seat, m.kind); break;
-    case "discard": break; // state更新で反映
+    case "call": popCall(m.seat, m.kind); onCallSound(m.seat, m.kind); break;
+    case "discard": Sound.discard(); break;
     case "seatChange": flash((m.name||"席")+" 交代"); break;
-    case "handEnd": showResult(m.result); break;
+    case "handEnd": showResult(m.result); onHandEndSound(m.result); break;
     case "gameOver": showGameOver(m); break;
+    case "chat": showBubble(m.seat, m.stamp||m.text, m.name, !!m.stamp); break;
+    case "handStart": document.getElementById("result").classList.remove("show"); break;
   }
+}
+function onCallSound(seat,kind){ const pos=seatToPos(seat);
+  if(kind==="リーチ"||kind==="ダブリー") Sound.riichi(); else Sound.call();
+  Voice.say(kind, pos);
+}
+function onHandEndSound(r){ if(!r)return;
+  if(r.kind==="tsumo"||r.kind==="ron"){ const w=r.winners&&r.winners[0]; Voice.say(r.kind==="tsumo"?"ツモ":"ロン", w?seatToPos(w.seat):0); Sound.win(); }
+  else { Sound.ryuukyoku(); }
 }
 
 // ---- 合言葉(パスワード)ゲート ----
@@ -229,11 +296,16 @@ document.getElementById("pwInput").addEventListener("keydown",e=>{ if(e.key==="E
 
 // ---- 画面: ロビー ----
 function renderLobby(m){ document.getElementById("lobbyInfo").textContent = "対局中の卓: "+m.tables.filter(t=>t.phase!=="gameOver").length+" (参加者 "+m.tables.reduce((a,t)=>a+t.humans,0)+"人)"; }
-document.getElementById("soloBtn").onclick=()=>{ const n=document.getElementById("nameInput").value.trim(); if(n)sendWS({t:"setName",name:n}); sendWS({t:"join",mode:"solo"}); };
-document.getElementById("autoBtn").onclick=()=>{ const n=document.getElementById("nameInput").value.trim(); if(n)sendWS({t:"setName",name:n}); sendWS({t:"join",mode:"auto"}); };
+document.getElementById("soloBtn").onclick=()=>{ audioKick(); const n=document.getElementById("nameInput").value.trim(); if(n){sendWS({t:"setName",name:n});saveName();} sendWS({t:"join",mode:"solo"}); };
+document.getElementById("autoBtn").onclick=()=>{ audioKick(); const n=document.getElementById("nameInput").value.trim(); if(n){sendWS({t:"setName",name:n});saveName();} sendWS({t:"join",mode:"auto"}); };
 document.getElementById("leaveBtn").onclick=()=>{ sendWS({t:"leave"}); location.reload(); };
 document.getElementById("seatBtn").onclick=showSeatModal;
-function nameFirst(){ const n=document.getElementById("nameInput").value.trim(); if(n)sendWS({t:"setName",name:n}); }
+document.getElementById("muteBtn").onclick=toggleMute;
+window.addEventListener("keydown",e=>{ if((e.key==="m"||e.key==="M") && document.activeElement && document.activeElement.tagName!=="INPUT"){ toggleMute(); } });
+// 名前を記憶(次回から自動入力)
+(function(){ try{ const saved=localStorage.getItem("mj_name"); if(saved) document.getElementById("nameInput").value=saved; }catch(e){} })();
+function saveName(){ const n=document.getElementById("nameInput").value.trim(); if(n){ try{localStorage.setItem("mj_name",n);}catch(e){} } }
+function nameFirst(){ audioKick(); const n=document.getElementById("nameInput").value.trim(); if(n){sendWS({t:"setName",name:n});saveName();} }
 document.getElementById("roomCreateBtn").onclick=()=>{ nameFirst(); sendWS({t:"createRoom"}); };
 document.getElementById("roomJoinBtn").onclick=()=>{ const code=document.getElementById("roomCodeInput").value.trim().toUpperCase(); if(!code){document.getElementById("lobbyErr").textContent="合言葉を入力してください";return;} nameFirst(); sendWS({t:"joinRoom",code}); };
 
@@ -315,6 +387,20 @@ function popCall(seat,kind){ const pos=seatToPos(seat); const b=document.getElem
   const map={0:{left:"50%",bottom:"20vmin"},1:{right:"22vmin",top:"50%"},2:{left:"50%",top:"18vmin"},3:{left:"22vmin",top:"50%"}}[pos];
   Object.assign(el.style,{position:"absolute",transform:"translate(-50%,-50%)"},map); b.append(el); setTimeout(()=>el.remove(),900); }
 
+// ---- スタンプ / チャット ----
+const STAMPS=["ナイス","リーチ！","ロン！","ツモ！","うまい","あぶない","おしい","次こそ","👍","🔥","😀","😭"];
+function buildStamps(){ const row=document.getElementById("stampRow"); row.innerHTML=""; STAMPS.forEach(s=>{ const b=document.createElement("button"); b.className="stamp"; b.textContent=s; b.onclick=()=>sendChat(s,true); row.append(b); }); }
+function sendChat(text,isStamp){ text=String(text||"").trim().slice(0,40); if(!text)return; sendWS(isStamp?{t:"chat",stamp:text}:{t:"chat",text:text}); if(!isStamp){ document.getElementById("chatText").value=""; } }
+function showBubble(seat, text, name, isStamp){ if(text==null)return; const pos=seatToPos(seat); const b=document.getElementById("board"); const el=document.createElement("div"); el.className="bubble"+(isStamp?" big":"");
+  el.innerHTML=(seat!==mySeat&&name?`<span class="who">${escapeHtml(name)}</span>`:"")+escapeHtml(String(text));
+  const map={0:{left:"50%",bottom:"26vmin"},1:{right:"20vmin",top:"42%"},2:{left:"50%",top:"24vmin"},3:{left:"20vmin",top:"42%"}}[pos];
+  Object.assign(el.style,{position:"absolute",transform:"translate(-50%,-50%)"},map); b.append(el); setTimeout(()=>el.remove(),3200); }
+function escapeHtml(s){ return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+document.getElementById("chatBtn").onclick=()=>{ const p=document.getElementById("chatPanel"); p.classList.toggle("show"); if(p.classList.contains("show")) document.getElementById("chatText").focus(); };
+document.getElementById("chatSend").onclick=()=>sendChat(document.getElementById("chatText").value,false);
+document.getElementById("chatText").addEventListener("keydown",e=>{ if(e.key==="Enter") sendChat(document.getElementById("chatText").value,false); });
+buildStamps();
+
 // ---- 結果 ----
 function showResult(r){
   const sh=document.getElementById("resultSheet"); let h="";
@@ -336,7 +422,8 @@ function showGameOver(m){
   const sh=document.getElementById("resultSheet");
   let h=`<h1>対局終了</h1>`+(m.reason?`<div>${m.reason}</div>`:"");
   h+='<table class="final-table">'; for(const e of m.ranking){ h+=`<tr class="${e.seat===mySeat?"me":""}"><td>${["🥇","🥈","🥉","4"][e.rank-1]}</td><td>${m.names[e.seat]}</td><td>${state.players.find(p=>p.seat===e.seat).score}</td>${e.pt!=null?`<td style="color:${e.pt>=0?"#7fffa0":"#ff8a8a"}">${e.pt>0?"+"+e.pt:e.pt}</td>`:""}</tr>`; } h+='</table>';
-  h+='<div class="row"><button class="abtn" onclick="location.reload()">ロビーへ</button></div>';
+  h+='<div class="row"><button class="abtn" onclick="sendWS({t:\'rematch\'})">もう一局</button><button class="abtn skip" onclick="location.reload()">ロビーへ</button></div>';
+  h+='<div style="font-size:1.5vmin;opacity:.7;margin-top:.6vmin">「もう一局」で同じメンバー・点数リセットで続けます</div>';
   sh.innerHTML=h; document.getElementById("result").classList.add("show");
 }
 // ---- 席モーダル(ホスト操作/参加状況) ----

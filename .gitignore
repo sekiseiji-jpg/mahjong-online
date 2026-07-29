@@ -1,1 +1,4 @@
 node_modules/
+
+# 個人情報を含むExcelは公開しない
+*.xlsx
