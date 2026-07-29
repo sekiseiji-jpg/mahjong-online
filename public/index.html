@@ -147,6 +147,13 @@
   @keyframes sheetPop{0%{transform:scale(.8);opacity:0}100%{transform:scale(1);opacity:1}}
   .winpulse{animation:winPulse 1s ease-in-out infinite;}
   @keyframes winPulse{0%,100%{box-shadow:0 0 0 2px var(--gold)}50%{box-shadow:0 0 1.4vmin .3vmin var(--gold)}}
+  /* 牌譜リプレイ操作バー */
+  #replayBar{position:absolute;left:50%;bottom:2vmin;transform:translateX(-50%);z-index:45;display:none;align-items:center;gap:1vmin;
+    background:rgba(6,32,20,.96);border:1px solid var(--gold);border-radius:12px;padding:.8vmin 1.4vmin;box-shadow:0 3px 12px rgba(0,0,0,.5);}
+  #replayBar.show{display:flex;}
+  #replayBar button{font:inherit;font-size:2.4vmin;color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);border-radius:8px;padding:.4vmin 1.2vmin;cursor:pointer;}
+  #replayBar #rpClose{font-size:1.8vmin;background:linear-gradient(#6b7b70,#55655a);}
+  #replayBar #rpIdx{font-size:2vmin;min-width:7vmin;text-align:center;color:var(--gold);font-weight:700;}
   /* タッチ端末では操作ボタンを押しやすいサイズに */
   @media (pointer:coarse){
     #topbar{font-size:2.3vmin;}
@@ -188,6 +195,14 @@
         <input id="chatText" maxlength="40" placeholder="メッセージ (40字まで)">
         <button id="chatSend" class="abtn">送信</button>
       </div>
+    </div>
+    <div id="replayBar">
+      <button id="rpFirst" title="最初へ">⏮</button>
+      <button id="rpPrev" title="前へ">◀</button>
+      <span id="rpIdx">1/1</span>
+      <button id="rpNext" title="次へ">▶</button>
+      <button id="rpLast" title="最後へ">⏭</button>
+      <button id="rpClose">結果に戻る</button>
     </div>
   </div>
 </div>
@@ -247,6 +262,8 @@ let ws, myId=null, myTable=null, mySeat=-1, state=null, pendingReact=null, myOpt
 // 端末ごとの永続ID(再接続で席に復帰するため)
 const PID=(function(){ try{ let p=localStorage.getItem("mj_pid"); if(!p){ p=(self.crypto&&crypto.randomUUID)?crypto.randomUUID():(Date.now()+"-"+Math.random().toString(36).slice(2)); localStorage.setItem("mj_pid",p);} return p; }catch(e){ return "anon"+Math.random(); } })();
 let sessionPw=null, _pwTry=null, everJoined=false, lastDisc=null;
+// 牌譜リプレイ(この局のstateスナップショットを記録して後で再生)
+let replayFrames=[], replayMode=false, replayIdx=0, replaySaved=null;
 function connect(){
   const proto=location.protocol==="https:"?"wss":"ws";
   ws=new WebSocket(proto+"://"+location.host);
@@ -299,7 +316,7 @@ function handle(m){
     case "joined": everJoined=true; isSpectator=false; mySeat=m.seat; myTable=m.tableId; myRoomCode=m.roomCode||null; document.getElementById("lobby").classList.remove("show"); document.getElementById("board").style.display=""; document.getElementById("seatBtn").style.display=""; document.getElementById("roomLbl").textContent=myRoomCode?("🔑"+myRoomCode):""; if(m.mode==="rejoin") flash("席に復帰しました",2000); else if(myRoomCode) flash("合言葉: "+myRoomCode+" (共有して友人を招待)",3000); break;
     case "spectating": isSpectator=true; document.getElementById("lobby").classList.remove("show"); document.getElementById("board").style.display=""; document.getElementById("roomLbl").textContent="👀 観戦中"; document.getElementById("seatBtn").style.display="none"; flash("👀 観戦モード",2000); break;
     case "error": document.getElementById("lobbyErr").textContent=m.msg; break;
-    case "state": state=m.state; mySeat=state.seat; render(); break;
+    case "state": if(replayMode) break; state=m.state; mySeat=state.seat; render(); if(state.phase==="playing") replayFrames.push(JSON.parse(JSON.stringify(state))); break;
     case "yourTurn": myOptions=m.options; showTurnControls(); Sound.draw(); break;
     case "canReact": pendingReact=m; showReactControls(); break;
     case "call": popCall(m.seat, m.kind); onCallSound(m.seat, m.kind); break;
@@ -308,7 +325,7 @@ function handle(m){
     case "handEnd": showResult(m.result); onHandEndSound(m.result); Stats.recordHand(m.result); break;
     case "gameOver": showGameOver(m); Stats.recordGame(m); break;
     case "chat": showBubble(m.seat, m.stamp||m.text, m.name, !!m.stamp); break;
-    case "handStart": document.getElementById("result").classList.remove("show"); break;
+    case "handStart": document.getElementById("result").classList.remove("show"); replayFrames=[]; break;
   }
 }
 function onCallSound(seat,kind){ const pos=seatToPos(seat);
@@ -504,9 +521,10 @@ function showResult(r){
     h+=`<div style="font-size:3vmin;font-weight:800">${w.yakuman?"役満":w.han+"飜"+w.fu+"符"} <span style="color:var(--gold)">${w.total}点</span></div>`;
   } else { h+=`<h2>${r.kind==="nagashi"?"流し満貫":"流局"}</h2>`; h+='<div>'+state.players.map(p=>`${p.name}: ${(r.tenpai||[]).includes(p.seat)?"テンパイ":"ノーテン"}`).join(" / ")+'</div>'; }
   h+='<table class="final-table">'; for(const p of state.players){ const d=r.deltas[p.seat]; h+=`<tr class="${p.seat===mySeat?"me":""}"><td>${p.name}</td><td style="color:${d>0?"#7fffa0":d<0?"#ff8a8a":"#fff"}">${d>0?"+"+d:d}</td><td>${r.scores[p.seat]}</td></tr>`; } h+='</table>';
-  h+='<div class="row"><button class="abtn" id="readyBtn">次へ</button></div>';
+  h+='<div class="row">'+(replayFrames.length?'<button class="abtn skip" id="replayBtn">🔁 この局をリプレイ</button>':'')+'<button class="abtn" id="readyBtn">次へ</button></div>';
   sh.innerHTML=h; document.getElementById("result").classList.add("show");
   document.getElementById("readyBtn").onclick=()=>{ sendWS({t:"ready"}); document.getElementById("result").classList.remove("show"); };
+  const rpb=document.getElementById("replayBtn"); if(rpb) rpb.onclick=startReplay;
 }
 function showGameOver(m){
   const sh=document.getElementById("resultSheet");
@@ -516,6 +534,15 @@ function showGameOver(m){
   h+='<div style="font-size:1.5vmin;opacity:.7;margin-top:.6vmin">「もう一局」で同じメンバー・点数リセットで続けます</div>';
   sh.innerHTML=h; document.getElementById("result").classList.add("show");
 }
+// ---- 牌譜リプレイ(この局のstate記録をステップ再生) ----
+function startReplay(){ if(!replayFrames.length) return; replayMode=true; replaySaved=state; document.getElementById("result").classList.remove("show"); document.getElementById("replayBar").classList.add("show"); clearControls(); showFrame(0); }
+function showFrame(i){ if(!replayFrames.length) return; replayIdx=Math.max(0,Math.min(replayFrames.length-1,i)); state=replayFrames[replayIdx]; mySeat=state.seat; lastDisc=null; render(); document.getElementById("rpIdx").textContent=(replayIdx+1)+"/"+replayFrames.length; }
+function exitReplay(){ replayMode=false; document.getElementById("replayBar").classList.remove("show"); state=replaySaved; if(state) render(); document.getElementById("result").classList.add("show"); }
+document.getElementById("rpFirst").onclick=()=>showFrame(0);
+document.getElementById("rpPrev").onclick=()=>showFrame(replayIdx-1);
+document.getElementById("rpNext").onclick=()=>showFrame(replayIdx+1);
+document.getElementById("rpLast").onclick=()=>showFrame(replayFrames.length-1);
+document.getElementById("rpClose").onclick=exitReplay;
 // ---- 席モーダル(ホスト操作/参加状況) ----
 function showSeatModal(){
   const sh=document.getElementById("seatSheet"); if(!state){return;}
