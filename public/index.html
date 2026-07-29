@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#075229">
 <title>麻雀オンライン</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="麻雀">
 <style>
   :root{--gold:#e6b422;}
   *{box-sizing:border-box;}
@@ -107,7 +114,7 @@
   #status{position:absolute;left:1vmin;bottom:1vmin;z-index:8;font-size:1.4vmin;opacity:.7;}
   #topbar #muteBtn.off{background:rgba(200,60,60,.3);border-color:rgba(255,120,120,.55);}
   /* チャット/スタンプ */
-  #chatPanel{position:absolute;left:50%;bottom:1vmin;transform:translateX(-50%);z-index:40;display:none;
+  #chatPanel{position:absolute;left:50%;bottom:calc(var(--h) + 3vmin);transform:translateX(-50%);z-index:40;display:none;
     flex-direction:column;gap:.6vmin;background:rgba(6,32,20,.94);border:1px solid var(--gold);border-radius:12px;
     padding:1vmin 1.2vmin;max-width:min(94vw,540px);}
   #chatPanel.show{display:flex;}
@@ -124,6 +131,15 @@
   .bubble .who{display:block;font-size:1.2vmin;font-weight:400;opacity:.6;}
   .bubble.big{font-size:3vmin;}
   @keyframes bpop{0%{transform:scale(.5);opacity:0}60%{transform:scale(1.08);opacity:1}100%{transform:scale(1);opacity:1}}
+  /* タッチ端末では操作ボタンを押しやすいサイズに */
+  @media (pointer:coarse){
+    #topbar{font-size:2.3vmin;}
+    #topbar button{font-size:15px;padding:6px 11px;border-radius:8px;}
+    .abtn{font-size:17px;padding:11px 18px;}
+    #stampRow .stamp{font-size:15px;padding:8px 12px;}
+    #chatText,#chatSend{font-size:16px;}
+    .sheet input{font-size:16px;}
+  }
 </style>
 </head>
 <body>
@@ -440,6 +456,8 @@ function showSeatModal(){
 }
 window.sendWS=sendWS;
 connect();
+// PWA: Service Worker 登録(ホーム画面に追加＆牌画像キャッシュ)
+if("serviceWorker" in navigator){ window.addEventListener("load",()=>{ navigator.serviceWorker.register("sw.js").catch(()=>{}); }); }
 </script>
 </body>
 </html>

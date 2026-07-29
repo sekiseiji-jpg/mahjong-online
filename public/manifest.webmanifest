@@ -1,0 +1,16 @@
+{
+  "name": "麻雀オンライン",
+  "short_name": "麻雀",
+  "description": "4人打ちリーチ麻雀をオンラインで。友達と合言葉で対戦。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#04321a",
+  "theme_color": "#075229",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
