@@ -46,10 +46,10 @@
   .seat .wind{color:var(--gold);margin-right:.3vmin;}
   .seat .nm{font-size:1.3vmin;opacity:.8;font-weight:400;}
   .seat .cpu{font-size:1.2vmin;opacity:.65;font-weight:400;}
-  .sc-bottom{left:50%;top:calc(50% + 28vmin);transform:translate(-50%,-50%);}
-  .sc-top{left:50%;top:calc(50% - 28vmin);transform:translate(-50%,-50%);}
-  .sc-left{left:calc(50% - 30vmin);top:50%;transform:translate(-50%,-50%);}
-  .sc-right{left:calc(50% + 30vmin);top:50%;transform:translate(-50%,-50%);}
+  .sc-bottom{left:50%;top:calc(50% + 14vmin);transform:translate(-50%,-50%);}
+  .sc-top{left:50%;top:calc(50% - 14vmin);transform:translate(-50%,-50%);}
+  .sc-left{left:calc(50% - 21vmin);top:50%;transform:translate(-50%,-50%);}
+  .sc-right{left:calc(50% + 21vmin);top:50%;transform:translate(-50%,-50%);}
   /* 手牌 */
   .hand{position:absolute;display:flex;align-items:flex-end;gap:2px;z-index:7;}
   .hand.bottom{left:50%;bottom:1vmin;transform:translateX(-50%);flex-wrap:nowrap;justify-content:center;max-width:97vw;width:var(--myhw);row-gap:.8vmin;}
@@ -72,10 +72,10 @@
   /* 捨て牌 */
   .discards{position:absolute;display:grid;grid-auto-rows:min-content;gap:1px;z-index:3;grid-template-columns:repeat(6,auto);}
   .discards .tile{width:3.4vmin;height:4.8vmin;}
-  .discards.bottom{left:50%;top:calc(50% + 10vmin);bottom:auto;transform:translateX(-50%);}
-  .discards.top{left:50%;bottom:calc(50% + 10vmin);top:auto;transform:translateX(-50%) rotate(180deg);}
-  .discards.left{left:calc(var(--h) + 26vmin);top:50%;transform:translateY(-50%) rotate(90deg);}
-  .discards.right{right:calc(var(--h) + 26vmin);top:50%;transform:translateY(-50%) rotate(-90deg);}
+  .discards.bottom{left:50%;top:calc(50% + 22vmin);bottom:auto;transform:translateX(-50%);}
+  .discards.top{left:50%;bottom:calc(50% + 22vmin);top:auto;transform:translateX(-50%) rotate(180deg);}
+  .discards.left{left:calc(var(--h) + 1vmin);top:50%;transform:translateY(-50%) rotate(90deg);}
+  .discards.right{right:calc(var(--h) + 1vmin);top:50%;transform:translateY(-50%) rotate(-90deg);}
   .discards .tile.tsumogiri{opacity:.72;}
   .discards .tile.last{box-shadow:0 0 0 2px var(--gold);}
   /* 鳴き */
