@@ -436,8 +436,7 @@ window.addEventListener("keydown",e=>{
     else if(e.key==="ArrowRight"){e.preventDefault(); handCursor=(handCursor+1)%tiles.length; updateHandCursor();}
     else if(e.key==="ArrowUp"){e.preventDefault(); moveCursorRow(-1);}
     else if(e.key==="ArrowDown"){e.preventDefault(); moveCursorRow(1);}
-    else if(e.key==="Enter"){e.preventDefault(); const t=tiles[tiles.length-1]; if(t) onTileClick(t);}          // 右端(ツモ牌)を切る
-    else if(e.key===" "){e.preventDefault(); const t=tiles[Math.min(Math.max(handCursor,0),tiles.length-1)]; if(t) onTileClick(t);}  // 選択中の牌を切る
+    else if(e.key==="Enter"||e.key===" "){e.preventDefault(); const t=tiles[Math.min(Math.max(handCursor,0),tiles.length-1)]; if(t) onTileClick(t);}  // 選択中の牌を切る
     else if(/^[0-9]$/.test(e.key)){ const idx=e.key==="0"?9:(+e.key-1); if(tiles[idx]){e.preventDefault(); handCursor=idx; onTileClick(tiles[idx]);} }
   }
 });
@@ -548,7 +547,7 @@ function showTurnControls(){
   const p=state&&state.players[mySeat];
   handCursor = p ? (p.drawn ? p.hand.length : Math.max(0,p.hand.length-1)) : 0;
   updateHandCursor();
-  if(!showTurnControls._hinted){ showTurnControls._hinted=true; flash("⌨ Enter=右端(ツモ牌) ／ ←→↑↓で選び Space=その牌 ／ 数字=直接 ／ T R K",4200); }
+  if(!showTurnControls._hinted){ showTurnControls._hinted=true; flash("⌨ ←→↑↓で牌を選び Enter/Space で切る ／ 数字=直接 ／ T=ツモ R=リーチ K=カン",4200); }
   else flash("あなたの番",700);
 }
 let riichiMode=false;
