@@ -105,7 +105,7 @@ const SPEC_FWD = new Set(['call', 'discard', 'handStart', 'handEnd', 'gameOver',
 function makeTable(opts, code) {
   const id = 't' + (tableSeq++);
   const table = new Table(Object.assign({ cpuDelay: 700, reactWindow: 10000, nextDelay: 8000, reactDelay: 400 }, opts));
-  const rec = { id, table, code: code || null, spectators: new Set() };
+  const rec = { id, table, code: code || null, spectators: new Set(), voice: new Set() };
   tables.set(id, rec);
   // 各席の human に、その席のメッセージを転送。観戦者には seat0 発火時のみ(重複回避)、全手牌公開ビューを配信
   table.onEvent((seat, msg) => {
@@ -265,6 +265,22 @@ wss.on('connection', (ws, req) => {
         }
         break;
       }
+      case 'voice': {
+        if (!rec || cli.seat < 0) break;
+        if (m.sub === 'join') {
+          const others = [...rec.voice].filter(s => s !== cli.seat);
+          rec.voice.add(cli.seat);
+          send(cli.ws, { t: 'voice', sub: 'members', seats: others });
+          for (const s of others) { const c = clientAtSeat(rec, s); if (c && c.ws.readyState === 1) send(c.ws, { t: 'voice', sub: 'join', seat: cli.seat }); }
+        } else if (m.sub === 'leave') {
+          rec.voice.delete(cli.seat);
+          for (const s of rec.voice) { const c = clientAtSeat(rec, s); if (c && c.ws.readyState === 1) send(c.ws, { t: 'voice', sub: 'leave', seat: cli.seat }); }
+        } else if (m.sub === 'signal') {
+          const c = clientAtSeat(rec, m.to);
+          if (c && c.ws.readyState === 1) send(c.ws, { t: 'voice', sub: 'signal', from: cli.seat, data: m.data });
+        }
+        break;
+      }
       case 'spectate': spectate(cli, m.tableId); break;
       case 'leave':
         if (rec) rec.table.disconnectClient(cli.id);
@@ -276,6 +292,10 @@ wss.on('connection', (ws, req) => {
 
   ws.on('close', () => {
     const rec = cli.tableId ? tables.get(cli.tableId) : null;
+    if (rec && cli.seat >= 0 && rec.voice.has(cli.seat)) {
+      rec.voice.delete(cli.seat);
+      for (const s of rec.voice) { const c = clientAtSeat(rec, s); if (c && c.ws.readyState === 1) send(c.ws, { t: 'voice', sub: 'leave', seat: cli.seat }); }
+    }
     if (rec) rec.table.disconnectClient(cli.id);
     stopSpectating(cli);
     clients.delete(id);

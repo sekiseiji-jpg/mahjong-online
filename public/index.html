@@ -113,6 +113,7 @@
   .yaku-list .han{color:var(--gold);}
   #status{position:absolute;left:1vmin;bottom:1vmin;z-index:8;font-size:1.4vmin;opacity:.7;}
   #topbar #muteBtn.off{background:rgba(200,60,60,.3);border-color:rgba(255,120,120,.55);}
+  #topbar #voiceBtn.on{background:rgba(60,200,110,.38);border-color:rgba(120,255,160,.65);}
   /* ルール選択 */
   #rulesBox{display:flex;gap:.6vmin 1.8vmin;flex-wrap:wrap;justify-content:center;align-items:center;font-size:1.9vmin;margin:1vmin 0 .2vmin;}
   #rulesBox label{display:inline-flex;align-items:center;gap:.4vmin;cursor:pointer;white-space:nowrap;}
@@ -178,7 +179,7 @@
   <div id="board" style="display:none">
     <div id="topbar">
       <div><span id="roundLbl">東1局</span> <span class="num" id="wallLbl">70</span>枚 <span id="roomLbl" style="color:var(--gold);margin-left:1vmin"></span></div>
-      <div><button id="chatBtn" title="スタンプ・チャット">💬</button> <button id="muteBtn" title="音のオン/オフ (M)">🔊</button> <button id="seatBtn">席</button> <button id="leaveBtn">退出</button></div>
+      <div><button id="voiceBtn" title="音声通話">🎤</button> <button id="chatBtn" title="スタンプ・チャット">💬</button> <button id="muteBtn" title="音のオン/オフ (M)">🔊</button> <button id="seatBtn">席</button> <button id="leaveBtn">退出</button></div>
     </div>
     <div id="center"></div>
     <div class="discards bottom" data-pos="0"></div><div class="discards right" data-pos="1"></div>
@@ -192,6 +193,7 @@
     <div id="controls"></div>
     <div id="msg"></div>
     <div id="status">未接続</div>
+    <div id="voiceAudios" style="display:none"></div>
     <div id="chatPanel">
       <div id="stampRow"></div>
       <div id="chatInputRow">
@@ -329,6 +331,7 @@ function handle(m){
     case "handEnd": showResult(m.result); onHandEndSound(m.result); Stats.recordHand(m.result); break;
     case "gameOver": showGameOver(m); Stats.recordGame(m); break;
     case "chat": showBubble(m.seat, m.stamp||m.text, m.name, !!m.stamp); break;
+    case "voice": handleVoice(m); break;
     case "handStart": document.getElementById("result").classList.remove("show"); replayFrames=[]; break;
   }
 }
@@ -513,6 +516,56 @@ document.getElementById("chatBtn").onclick=()=>{ const p=document.getElementById
 document.getElementById("chatSend").onclick=()=>sendChat(document.getElementById("chatText").value,false);
 document.getElementById("chatText").addEventListener("keydown",e=>{ if(e.key==="Enter") sendChat(document.getElementById("chatText").value,false); });
 buildStamps();
+
+// ---- 音声通話 (WebRTC P2P メッシュ) ----
+const RTC_CONFIG={ iceServers:[
+  {urls:"stun:stun.l.google.com:19302"},
+  {urls:"stun:stun1.l.google.com:19302"},
+  {urls:"turn:openrelay.metered.ca:80",username:"openrelayproject",credential:"openrelayproject"},
+  {urls:"turn:openrelay.metered.ca:443",username:"openrelayproject",credential:"openrelayproject"}
+]};
+let voiceOn=false, localStream=null, peers={};   // seat -> RTCPeerConnection
+function setVoiceBtn(){ const b=document.getElementById("voiceBtn"); if(!b)return; b.textContent=voiceOn?"🎙":"🎤"; b.classList.toggle("on",voiceOn); }
+function vsig(to,data){ sendWS({t:"voice",sub:"signal",to,data}); }
+async function voiceToggle(){
+  if(isSpectator){ flash("観戦中は通話できません",1500); return; }
+  if(voiceOn){ leaveVoice(); return; }
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ flash("この環境では通話できません",2000); return; }
+  try{ localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false}); }
+  catch(e){ flash("マイクの使用が許可されていません",2200); return; }
+  voiceOn=true; setVoiceBtn(); sendWS({t:"voice",sub:"join"}); flash("🎙 音声通話に参加中",1600);
+}
+function leaveVoice(){
+  if(voiceOn) sendWS({t:"voice",sub:"leave"});
+  for(const s in peers){ try{peers[s].close();}catch(e){} }
+  peers={}; document.getElementById("voiceAudios").innerHTML="";
+  if(localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream=null; }
+  const wasOn=voiceOn; voiceOn=false; setVoiceBtn(); if(wasOn) flash("音声通話から退出",1200);
+}
+function ensurePeer(seat){
+  if(peers[seat]) return peers[seat];
+  const pc=new RTCPeerConnection(RTC_CONFIG); peers[seat]=pc;
+  if(localStream) localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));
+  pc.onicecandidate=e=>{ if(e.candidate) vsig(seat,{type:"ice",candidate:e.candidate}); };
+  pc.ontrack=e=>{ let a=document.getElementById("va"+seat); if(!a){ a=document.createElement("audio"); a.id="va"+seat; a.autoplay=true; a.playsInline=true; document.getElementById("voiceAudios").append(a);} a.srcObject=e.streams[0]; a.play&&a.play().catch(()=>{}); };
+  pc.onconnectionstatechange=()=>{ if(pc.connectionState==="failed"||pc.connectionState==="closed") closePeer(seat); };
+  return pc;
+}
+function closePeer(seat){ if(peers[seat]){ try{peers[seat].close();}catch(e){} delete peers[seat]; } const a=document.getElementById("va"+seat); if(a) a.remove(); }
+async function startOffer(seat){ const pc=ensurePeer(seat); try{ const o=await pc.createOffer(); await pc.setLocalDescription(o); vsig(seat,{type:"offer",sdp:pc.localDescription}); }catch(e){} }
+async function handleVoice(m){
+  if(m.sub==="members"){ if(!voiceOn)return; for(const s of m.seats){ if(mySeat<s) startOffer(s); else ensurePeer(s); } }
+  else if(m.sub==="join"){ if(!voiceOn)return; const s=m.seat; if(mySeat<s) startOffer(s); else ensurePeer(s); }
+  else if(m.sub==="leave"){ closePeer(m.seat); }
+  else if(m.sub==="signal"){ const s=m.from,d=m.data,pc=ensurePeer(s);
+    try{
+      if(d.type==="offer"){ await pc.setRemoteDescription(d.sdp); const a=await pc.createAnswer(); await pc.setLocalDescription(a); vsig(s,{type:"answer",sdp:pc.localDescription}); }
+      else if(d.type==="answer"){ await pc.setRemoteDescription(d.sdp); }
+      else if(d.type==="ice"){ await pc.addIceCandidate(d.candidate); }
+    }catch(e){}
+  }
+}
+document.getElementById("voiceBtn").onclick=voiceToggle;
 
 // ---- 結果 ----
 function showResult(r){
