@@ -113,6 +113,10 @@
   .yaku-list .han{color:var(--gold);}
   #status{position:absolute;left:1vmin;bottom:1vmin;z-index:8;font-size:1.4vmin;opacity:.7;}
   #topbar #muteBtn.off{background:rgba(200,60,60,.3);border-color:rgba(255,120,120,.55);}
+  /* ルール選択 */
+  #rulesBox{display:flex;gap:.6vmin 1.8vmin;flex-wrap:wrap;justify-content:center;align-items:center;font-size:1.9vmin;margin:1vmin 0 .2vmin;}
+  #rulesBox label{display:inline-flex;align-items:center;gap:.4vmin;cursor:pointer;white-space:nowrap;}
+  #rulesBox input{width:auto!important;margin:0;transform:scale(1.2);}
   /* チャット/スタンプ */
   #chatPanel{position:absolute;left:50%;bottom:calc(var(--h) + 3vmin);transform:translateX(-50%);z-index:40;display:none;
     flex-direction:column;gap:.6vmin;background:rgba(6,32,20,.94);border:1px solid var(--gold);border-radius:12px;
@@ -188,6 +192,14 @@
   <h1>麻雀オンライン</h1>
   <p>4人打ちリーチ麻雀。あなた＋人間/CPU3人。<br>途中参加・離脱(CPU代打ち)対応。</p>
   <div><input id="nameInput" placeholder="名前" maxlength="16"></div>
+  <div id="rulesBox">
+    <label><input type="radio" name="rule_len" value="tonpu" checked>東風戦</label>
+    <label><input type="radio" name="rule_len" value="hanchan">半荘戦</label>
+    <label><input type="checkbox" id="rule_aka" checked>赤ドラ</label>
+    <label><input type="checkbox" id="rule_kuitan" checked>喰いタン</label>
+    <label><input type="checkbox" id="rule_tobi" checked>トビ終了</label>
+  </div>
+  <div style="font-size:1.4vmin;opacity:.65;margin:-.3vmin 0 .8vmin">↑ ルールは「1人で」「ルームを作る」に反映（自動マッチング・参加は卓に従う）</div>
   <div class="row">
     <button class="abtn" id="soloBtn">1人で(CPU3人)</button>
     <button class="abtn" id="autoBtn">自動マッチング</button>
@@ -312,7 +324,7 @@ document.getElementById("pwInput").addEventListener("keydown",e=>{ if(e.key==="E
 
 // ---- 画面: ロビー ----
 function renderLobby(m){ document.getElementById("lobbyInfo").textContent = "対局中の卓: "+m.tables.filter(t=>t.phase!=="gameOver").length+" (参加者 "+m.tables.reduce((a,t)=>a+t.humans,0)+"人)"; }
-document.getElementById("soloBtn").onclick=()=>{ audioKick(); const n=document.getElementById("nameInput").value.trim(); if(n){sendWS({t:"setName",name:n});saveName();} sendWS({t:"join",mode:"solo"}); };
+document.getElementById("soloBtn").onclick=()=>{ audioKick(); const n=document.getElementById("nameInput").value.trim(); if(n){sendWS({t:"setName",name:n});saveName();} sendWS({t:"join",mode:"solo",rules:getRules()}); };
 document.getElementById("autoBtn").onclick=()=>{ audioKick(); const n=document.getElementById("nameInput").value.trim(); if(n){sendWS({t:"setName",name:n});saveName();} sendWS({t:"join",mode:"auto"}); };
 document.getElementById("leaveBtn").onclick=()=>{ sendWS({t:"leave"}); location.reload(); };
 document.getElementById("seatBtn").onclick=showSeatModal;
@@ -321,8 +333,22 @@ window.addEventListener("keydown",e=>{ if((e.key==="m"||e.key==="M") && document
 // 名前を記憶(次回から自動入力)
 (function(){ try{ const saved=localStorage.getItem("mj_name"); if(saved) document.getElementById("nameInput").value=saved; }catch(e){} })();
 function saveName(){ const n=document.getElementById("nameInput").value.trim(); if(n){ try{localStorage.setItem("mj_name",n);}catch(e){} } }
+// ルール(東風/半荘・赤/喰い/トビ)の取得・記憶・復元
+function getRules(){ const r={
+  hanchan: (document.querySelector('input[name=rule_len]:checked')||{}).value==="hanchan",
+  aka: document.getElementById("rule_aka").checked,
+  kuitan: document.getElementById("rule_kuitan").checked,
+  tobi: document.getElementById("rule_tobi").checked };
+  try{ localStorage.setItem("mj_rules", JSON.stringify(r)); }catch(e){}
+  return r; }
+(function(){ try{ const r=JSON.parse(localStorage.getItem("mj_rules")||"null"); if(r){
+  document.querySelector('input[name=rule_len][value="'+(r.hanchan?"hanchan":"tonpu")+'"]').checked=true;
+  document.getElementById("rule_aka").checked=r.aka!==false;
+  document.getElementById("rule_kuitan").checked=r.kuitan!==false;
+  document.getElementById("rule_tobi").checked=r.tobi!==false;
+} }catch(e){} })();
 function nameFirst(){ audioKick(); const n=document.getElementById("nameInput").value.trim(); if(n){sendWS({t:"setName",name:n});saveName();} }
-document.getElementById("roomCreateBtn").onclick=()=>{ nameFirst(); sendWS({t:"createRoom"}); };
+document.getElementById("roomCreateBtn").onclick=()=>{ nameFirst(); sendWS({t:"createRoom",rules:getRules()}); };
 document.getElementById("roomJoinBtn").onclick=()=>{ const code=document.getElementById("roomCodeInput").value.trim().toUpperCase(); if(!code){document.getElementById("lobbyErr").textContent="合言葉を入力してください";return;} nameFirst(); sendWS({t:"joinRoom",code}); };
 
 // pos = 画面位置(0下=自分,1右,2上,3左)。server seat -> pos
@@ -335,7 +361,8 @@ function render(){
   document.getElementById("wallLbl").textContent=state.wallRemain;
   // center
   const c=document.getElementById("center");
-  c.innerHTML=`<div class="big">${(state.wRound===0?"東":"南")+(state.round%4+1)}局</div><div class="sub">${state.honba}本場・供託${state.riichiSticks}</div><div class="dora"></div><div class="sub">残り ${state.wallRemain} 枚</div>`;
+  const rl=state.rules?`<div class="sub" style="opacity:.7">${state.rules.hanchan?"半荘":"東風"}${state.rules.aka?"・赤":""}${state.rules.kuitan?"・喰":""}${state.rules.tobi?"・トビ":""}</div>`:"";
+  c.innerHTML=`<div class="big">${(state.wRound===0?"東":"南")+(state.round%4+1)}局</div><div class="sub">${state.honba}本場・供託${state.riichiSticks}</div><div class="dora"></div><div class="sub">残り ${state.wallRemain} 枚</div>${rl}`;
   const dm=c.querySelector(".dora"); for(const d of state.dora) dm.append(tileEl(d));
   // seats + hands + discards + melds
   for(const p of state.players){

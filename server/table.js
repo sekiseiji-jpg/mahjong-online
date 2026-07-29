@@ -523,6 +523,7 @@ class Table {
       seat, phase: this.phase, turn: G.turn, dealer: G.dealer, round: G.round, honba: G.honba,
       wRound: G.wRound, riichiSticks: G.riichiSticks, wallRemain: this.wallRemain(),
       dora: G.doraIndicators.map(d => this._tile(d)),
+      rules: { hanchan: !!G.hanchan, aka: !!G.aka, kuitan: !!G.kuitan, tobi: !!G.tobi },
       players,
       pending: this.pending && this.pending.seat === seat ? { type: this.pending.type } : (this.pending && this.pending.type === 'react' ? { type: 'react' } : null),
       seats: this.seats.map(s => ({ seat: s.seat, controller: s.controller, name: s.name, connected: s.connected, isHost: s.clientId && s.clientId === this.hostId })),

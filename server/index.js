@@ -92,6 +92,13 @@ function genRoomCode() {
 }
 function findRoom(code) { return [...tables.values()].find(r => r.code === code && r.table.phase !== 'gameOver'); }
 
+// クライアントから来たルールを検証(不正値は既定に丸める)
+function sanitizeRules(r) {
+  r = r || {};
+  const b = (v, d) => (typeof v === 'boolean' ? v : d);
+  return { hanchan: b(r.hanchan, false), aka: b(r.aka, true), kuitan: b(r.kuitan, true), tobi: b(r.tobi, true) };
+}
+
 function makeTable(opts, code) {
   const id = 't' + (tableSeq++);
   const table = new Table(Object.assign({ cpuDelay: 700, reactWindow: 10000, nextDelay: 8000, reactDelay: 400 }, opts));
@@ -106,7 +113,7 @@ function makeTable(opts, code) {
 }
 
 // 自動マッチング: 空きCPU席のある卓に着席、無ければ新卓を作り開始
-function matchmake(cli, mode) {
+function matchmake(cli, mode, rules) {
   // solo は必ず新卓(1人+CPU3)、auto は既存卓の空きCPU席を優先
   if (mode !== 'solo') {
     for (const rec of tables.values()) {
@@ -121,7 +128,7 @@ function matchmake(cli, mode) {
       }
     }
   }
-  const rec = makeTable();
+  const rec = makeTable(sanitizeRules(rules));
   cli.tableId = rec.id;
   rec.table.seatController(0, 'human', cli.id, cli.name);
   rec.table.hostId = cli.id;
@@ -132,9 +139,9 @@ function matchmake(cli, mode) {
 }
 
 // ルームを作る(合言葉で友人と)
-function createRoom(cli) {
+function createRoom(cli, rules) {
   const code = genRoomCode();
-  const rec = makeTable({}, code);
+  const rec = makeTable(sanitizeRules(rules), code);
   cli.tableId = rec.id;
   rec.table.seatController(0, 'human', cli.id, cli.name);
   rec.table.hostId = cli.id;
@@ -180,8 +187,8 @@ wss.on('connection', (ws, req) => {
     const rec = cli.tableId ? tables.get(cli.tableId) : null;
     switch (m.t) {
       case 'setName': cli.name = String(m.name || '').slice(0, 16) || cli.name; break;
-      case 'join': matchmake(cli, m.mode || 'auto'); break;
-      case 'createRoom': createRoom(cli); break;
+      case 'join': matchmake(cli, m.mode || 'auto', m.rules); break;
+      case 'createRoom': createRoom(cli, m.rules); break;
       case 'joinRoom': joinRoom(cli, m.code); break;
       case 'action': if (rec) rec.table.action(cli.id, m.act || m); break;
       case 'ready': if (rec) rec.table.ready(cli.id); break;
