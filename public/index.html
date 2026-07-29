@@ -52,13 +52,17 @@
   .sc-right{left:calc(50% + 20vmin);top:50%;transform:translate(-50%,-50%);}
   /* 手牌 */
   .hand{position:absolute;display:flex;align-items:flex-end;gap:2px;z-index:7;}
-  .hand.bottom{left:50%;bottom:1vmin;transform:translateX(-50%);flex-wrap:wrap;justify-content:center;max-width:97vw;row-gap:.8vmin;}
+  .hand.bottom{left:50%;bottom:1vmin;transform:translateX(-50%);flex-wrap:wrap;justify-content:center;max-width:97vw;width:var(--myhw);row-gap:.8vmin;}
   .hand.top{left:50%;top:calc(var(--topbar-h,5vmin) + .8vmin);transform:translateX(-50%) rotate(180deg);}
   .hand.left{left:calc(var(--h)/2 + 1vmin);top:50%;transform:translate(-50%,-50%) rotate(90deg);}
   .hand.right{right:calc(var(--h)/2 + 1vmin);left:auto;top:50%;transform:translate(50%,-50%) rotate(-90deg);}
-  :root{--h:7.4vmin;}
-  .hand.bottom .tile{width:5.4vmin;height:7.4vmin;cursor:pointer;transition:transform .1s;}
+  :root{--h:7.4vmin; --myhtw:5.4vmin; --myhth:7.4vmin; --myh:7.4vmin; --myhw:auto;}
+  /* 自分の手牌サイズ: 小(既定)/中/大(大は2段) */
+  .tsize-m{--myhtw:6.5vmin; --myhth:8.9vmin; --myh:8.9vmin; --myhw:auto;}
+  .tsize-l{--myhtw:11.4vmin; --myhth:15.5vmin; --myh:33vmin; --myhw:88vmin;}
+  .hand.bottom .tile{width:var(--myhtw);height:var(--myhth);cursor:pointer;transition:transform .1s;}
   .hand.bottom .tile.drawn{margin-left:1.4vmin;}
+  .tsize-l .hand.bottom .tile.drawn{margin-left:0;outline:.3vmin solid rgba(255,255,255,.55);outline-offset:-.3vmin;}
   .hand .tile{width:5.4vmin;height:7.4vmin;}
   .hand.bottom .tile.sel,.hand.bottom .tile:active{transform:translateY(-1.4vmin);}
   .hand.bottom .tile.rec{outline:.35vmin solid var(--gold);outline-offset:-.35vmin;}
@@ -67,7 +71,7 @@
   /* 捨て牌 */
   .discards{position:absolute;display:grid;grid-auto-rows:min-content;gap:1px;z-index:3;grid-template-columns:repeat(6,auto);}
   .discards .tile{width:3.4vmin;height:4.8vmin;}
-  .discards.bottom{left:50%;bottom:calc(var(--h) + 9vmin);transform:translateX(-50%);}
+  .discards.bottom{left:50%;bottom:calc(var(--myh) + 9vmin);transform:translateX(-50%);}
   .discards.top{left:50%;top:calc(var(--h) + 9vmin);transform:translateX(-50%) rotate(180deg);}
   .discards.left{left:calc(var(--h) + 9vmin);top:50%;transform:translateY(-50%) rotate(90deg);}
   .discards.right{right:calc(var(--h) + 9vmin);top:50%;transform:translateY(-50%) rotate(-90deg);}
@@ -120,6 +124,9 @@
   #rulesBox{display:flex;gap:.6vmin 1.8vmin;flex-wrap:wrap;justify-content:center;align-items:center;font-size:1.9vmin;margin:1vmin 0 .2vmin;}
   #rulesBox label{display:inline-flex;align-items:center;gap:.4vmin;cursor:pointer;white-space:nowrap;}
   #rulesBox input{width:auto!important;margin:0;transform:scale(1.2);}
+  #tsizeBox{font-size:1.9vmin;margin:.2vmin 0 1vmin;}
+  #tsizeBox label{display:inline-flex;align-items:center;gap:.3vmin;margin:0 .7vmin;cursor:pointer;}
+  #tsizeBox input{width:auto!important;margin:0;transform:scale(1.2);}
   /* チャット/スタンプ */
   #chatPanel{position:absolute;left:50%;bottom:calc(var(--h) + 3vmin);transform:translateX(-50%);z-index:40;display:none;
     flex-direction:column;gap:.6vmin;background:rgba(6,32,20,.94);border:1px solid var(--gold);border-radius:12px;
@@ -168,12 +175,6 @@
     #stampRow .stamp{font-size:15px;padding:8px 12px;}
     #chatText,#chatSend{font-size:16px;}
     .sheet input{font-size:16px;}
-  }
-  /* スマホ縦: 自分の手牌を2段(上段/下段)に。牌も大きく押しやすく＝↑↓で段移動 */
-  @media (max-aspect-ratio: 3/4){
-    .hand.bottom{width:88vmin;max-width:97vw;bottom:.6vmin;}
-    .hand.bottom .tile{width:11.4vmin;height:15.5vmin;}
-    .hand.bottom .tile.drawn{margin-left:0;outline:.3vmin solid rgba(255,255,255,.55);outline-offset:-.3vmin;}
   }
 </style>
 </head>
@@ -240,7 +241,12 @@
     <label><input type="checkbox" id="rule_tobi" checked>トビ終了</label>
     <label><input type="checkbox" id="rule_wareme">割れ目</label>
   </div>
-  <div style="font-size:1.4vmin;opacity:.65;margin:-.3vmin 0 .8vmin">↑ ルールは「1人で」「ルームを作る」に反映（自動マッチング・参加は卓に従う）</div>
+  <div style="font-size:1.4vmin;opacity:.65;margin:-.3vmin 0 .6vmin">↑ ルールは「1人で」「ルームを作る」に反映（自動マッチング・参加は卓に従う）</div>
+  <div id="tsizeBox">牌の大きさ：
+    <label><input type="radio" name="tsize" value="s" checked>小</label>
+    <label><input type="radio" name="tsize" value="m">中</label>
+    <label><input type="radio" name="tsize" value="l">大（2段）</label>
+  </div>
   <div class="row">
     <button class="abtn" id="soloBtn">1人で(CPU3人)</button>
     <button class="abtn" id="autoBtn">自動マッチング</button>
@@ -449,6 +455,10 @@ function getRules(){ const r={
   document.getElementById("rule_tobi").checked=r.tobi!==false;
   document.getElementById("rule_wareme").checked=!!r.wareme;
 } }catch(e){} })();
+// 牌の大きさ(小/中/大) 選択・適用・記憶
+function applyTileSize(sz){ const el=document.documentElement; el.classList.remove("tsize-m","tsize-l"); if(sz==="m")el.classList.add("tsize-m"); else if(sz==="l")el.classList.add("tsize-l"); try{localStorage.setItem("mj_tsize",sz);}catch(e){} if(typeof state!=="undefined"&&state)render(); }
+(function(){ let sz="s"; try{ sz=localStorage.getItem("mj_tsize")||"s"; }catch(e){} const r=document.querySelector('input[name=tsize][value="'+sz+'"]'); if(r)r.checked=true; applyTileSize(sz);
+  document.querySelectorAll('input[name=tsize]').forEach(inp=>inp.addEventListener("change",()=>{ if(inp.checked) applyTileSize(inp.value); })); })();
 
 // ---- 通算成績(順位・和了率・ポイント) localStorage ----
 const Stats={
