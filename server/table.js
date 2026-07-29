@@ -54,7 +54,14 @@ class Table {
   // 空いているCPU席に人間が着席(後から参加)。離席者の復帰用席(pidあり)より、
   // 純粋なCPU席(pidなし)を優先して割り当てる。
   claimSeat(clientId, name, pid) {
-    let seat = this.seats.findIndex(s => s.controller === 'cpu' && !s.pid);
+    let seat = -1;
+    // 人間が現在1人だけなら、2人目は相手の「対面」に座らせる
+    const humans = this.seats.filter(s => s.controller === 'human');
+    if (humans.length === 1) {
+      const opp = (humans[0].seat + 2) % 4;
+      if (this.seats[opp].controller === 'cpu') seat = opp;
+    }
+    if (seat < 0) seat = this.seats.findIndex(s => s.controller === 'cpu' && !s.pid);
     if (seat < 0) seat = this.seats.findIndex(s => s.controller === 'cpu');
     if (seat < 0) return -1;
     this.seatController(seat, 'human', clientId, name, pid);
