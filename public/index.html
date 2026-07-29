@@ -69,6 +69,7 @@
   .hand.bottom .tile.rec{outline:.35vmin solid var(--gold);outline-offset:-.35vmin;}
   .hand.bottom .tile.kbcur{outline:.45vmin solid #4db6ff;outline-offset:-.45vmin;transform:translateY(-.9vmin);box-shadow:0 0 1.2vmin rgba(77,182,255,.7);}
   .abtn .kh{font-size:.62em;opacity:.75;margin-left:.3em;font-weight:600;}
+  .abtn.kbfocus{outline:.4vmin solid #4db6ff;outline-offset:.3vmin;box-shadow:0 0 1.6vmin rgba(77,182,255,.85);transform:translateY(-.4vmin);}
   /* 捨て牌 */
   .discards{position:absolute;display:grid;grid-auto-rows:min-content;gap:1px;z-index:3;grid-template-columns:repeat(6,auto);}
   .discards .tile{width:3.4vmin;height:4.8vmin;}
@@ -282,7 +283,7 @@ function faceShort(t){ if(t>=27)return HONOR[t-27]; return (t%9+1)+["m","p","s"]
 let ws, myId=null, myTable=null, mySeat=-1, state=null, pendingReact=null, myOptions=null, myRoomCode=null, isSpectator=false;
 // 端末ごとの永続ID(再接続で席に復帰するため)
 const PID=(function(){ try{ let p=localStorage.getItem("mj_pid"); if(!p){ p=(self.crypto&&crypto.randomUUID)?crypto.randomUUID():(Date.now()+"-"+Math.random().toString(36).slice(2)); localStorage.setItem("mj_pid",p);} return p; }catch(e){ return "anon"+Math.random(); } })();
-let sessionPw=null, _pwTry=null, everJoined=false, lastDisc=null, handCursor=0;
+let sessionPw=null, _pwTry=null, everJoined=false, lastDisc=null, handCursor=0, reactCursor=-1;
 // 牌譜リプレイ(この局のstateスナップショットを記録して後で再生)
 let replayFrames=[], replayMode=false, replayIdx=0, replaySaved=null;
 function connect(){
@@ -417,6 +418,9 @@ window.addEventListener("keydown",e=>{
   // 反応(ロン/ポン/チー/カン/スキップ): 数字で選択、Escでスキップ
   if(pendingReact){
     if(e.key==="Escape"){ const sk=ctl.querySelector('button[data-key="skip"]'); if(sk){e.preventDefault();sk.click();} return; }
+    if(e.key==="ArrowUp"||e.key==="ArrowLeft"){ e.preventDefault(); moveReactCursor(-1); return; }
+    if(e.key==="ArrowDown"||e.key==="ArrowRight"){ e.preventDefault(); moveReactCursor(1); return; }
+    if(e.key==="Enter"||e.key===" "){ const bs=reactBtns(); if(reactCursor>=0&&bs[reactCursor]){ e.preventDefault(); bs[reactCursor].click(); } return; }
     const bn=ctl.querySelector('button[data-key="'+e.key+'"]'); if(bn){e.preventDefault();bn.click();}
     return;
   }
@@ -563,11 +567,17 @@ function showReactControls(){
   const chi=opts.find(o=>o.type==="chi");
   if(chi){ if(chi.options.length===1) ctl.append(btn("チー","",()=>react({type:"chi",chi:chi.options[0]}),String(++n))); else chi.options.forEach(o=>ctl.append(btn("チー"+o.map(faceShort).join(""),"",()=>react({type:"chi",chi:o}),String(++n)))); }
   ctl.append(btn("スキップ","skip",()=>react({type:"skip"}),"skip"));
+  reactCursor=-1; updateReactCursor();
+  flash("⌨ ↑↓←→で選び Enterで決定（数字=直接／Esc=スキップ）",2500);
 }
 function react(act){ sendWS({t:"action",act}); pendingReact=null; clearControls(); }
 function clearControls(){ document.getElementById("controls").innerHTML=""; }
 function updateHandCursor(){ const he=document.querySelector('.hand[data-pos="0"]'); if(!he)return; const tiles=[...he.children]; if(!tiles.length)return; if(handCursor>=tiles.length)handCursor=tiles.length-1; if(handCursor<0)handCursor=0; tiles.forEach((el,i)=>el.classList.toggle("kbcur", i===handCursor && !!myOptions)); }
 function blurInputs(){ const a=document.activeElement; if(a && (a.tagName==="INPUT"||a.tagName==="TEXTAREA")) a.blur(); }
+// 反応ボタン(ポン/チー/カン/ロン/スキップ)の選択ハイライト
+function reactBtns(){ const ctl=document.getElementById("controls"); return ctl?[...ctl.querySelectorAll("button")]:[]; }
+function updateReactCursor(){ const bs=reactBtns(); bs.forEach((b,i)=>b.classList.toggle("kbfocus", i===reactCursor)); }
+function moveReactCursor(d){ const bs=reactBtns(); if(!bs.length)return; if(reactCursor<0) reactCursor=(d>0?0:bs.length-1); else reactCursor=(reactCursor+d+bs.length)%bs.length; updateReactCursor(); }
 // 上下キー: 2段折り返し時に上段/下段の同じ位置あたりの牌へカーソル移動
 function moveCursorRow(dir){
   const he=document.querySelector('.hand[data-pos="0"]'); if(!he)return;
