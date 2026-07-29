@@ -531,6 +531,20 @@ class Table {
   }
   pushState() { for (let s = 0; s < 4; s++) this.emit(s, { t: 'state', state: this.viewFor(s) }); }
 
+  // 観戦者向け: seat0 視点をベースに全員の手牌を公開する
+  spectatorView() {
+    const base = this.viewFor(0);
+    base.players = base.players.map((pv, i) => {
+      const p = this.G.players[i];
+      pv.hand = p.hand.map(t => this._tile(t));
+      pv.drawn = this._tile(p.drawn);
+      return pv;
+    });
+    base.pending = null;      // 観戦者は操作しない
+    base.spectator = true;
+    return base;
+  }
+
   _maybePromptSeat(seat) {
     if (this.pending && this.pending.type === 'turn' && this.pending.seat === seat && this.isHuman(seat)) {
       this.emit(seat, { t: 'yourTurn', options: this.pending.options, drawn: this._tile(this.G.players[seat].drawn) });

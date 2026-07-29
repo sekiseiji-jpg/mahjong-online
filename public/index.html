@@ -231,7 +231,7 @@ function tileEl(t,opt={}){ const e=document.createElement("div"); e.className="t
 function faceShort(t){ if(t>=27)return HONOR[t-27]; return (t%9+1)+["m","p","s"][suitOf(t)]; }
 
 // ---- WebSocket ----
-let ws, myId=null, myTable=null, mySeat=-1, state=null, pendingReact=null, myOptions=null, myRoomCode=null;
+let ws, myId=null, myTable=null, mySeat=-1, state=null, pendingReact=null, myOptions=null, myRoomCode=null, isSpectator=false;
 function connect(){
   const proto=location.protocol==="https:"?"wss":"ws";
   ws=new WebSocket(proto+"://"+location.host);
@@ -281,6 +281,7 @@ function handle(m){
     case "locked": gateLocked(m.seconds); break;
     case "lobby": renderLobby(m); break;
     case "joined": mySeat=m.seat; myTable=m.tableId; myRoomCode=m.roomCode||null; document.getElementById("lobby").classList.remove("show"); document.getElementById("board").style.display=""; document.getElementById("roomLbl").textContent=myRoomCode?("🔑"+myRoomCode):""; if(myRoomCode) flash("合言葉: "+myRoomCode+" (共有して友人を招待)",3000); break;
+    case "spectating": isSpectator=true; document.getElementById("lobby").classList.remove("show"); document.getElementById("board").style.display=""; document.getElementById("roomLbl").textContent="👀 観戦中"; document.getElementById("seatBtn").style.display="none"; flash("👀 観戦モード",2000); break;
     case "error": document.getElementById("lobbyErr").textContent=m.msg; break;
     case "state": state=m.state; mySeat=state.seat; render(); break;
     case "yourTurn": myOptions=m.options; showTurnControls(); Sound.draw(); break;
@@ -324,7 +325,14 @@ document.getElementById("pwBtn").onclick=submitPw;
 document.getElementById("pwInput").addEventListener("keydown",e=>{ if(e.key==="Enter") submitPw(); });
 
 // ---- 画面: ロビー ----
-function renderLobby(m){ document.getElementById("lobbyInfo").textContent = "対局中の卓: "+m.tables.filter(t=>t.phase!=="gameOver").length+" (参加者 "+m.tables.reduce((a,t)=>a+t.humans,0)+"人)"; }
+function renderLobby(m){
+  const el=document.getElementById("lobbyInfo");
+  const ongoing=(m.tables||[]).filter(t=>t.phase!=="gameOver");
+  if(!ongoing.length){ el.textContent="対局中の卓: 0"; return; }
+  el.innerHTML="👀 進行中の卓を観戦：<br>"+ongoing.map(t=>
+    `<span style="display:inline-flex;align-items:center;gap:.5vmin;margin:.4vmin .6vmin">卓${String(t.id).replace(/^t/,'')}(${t.humans}人) <button class="abtn" style="font-size:1.5vmin;padding:.3vmin 1vmin;box-shadow:0 2px 0 #9a7400" onclick="sendWS({t:'spectate',tableId:'${t.id}'})">観戦</button></span>`
+  ).join(" ");
+}
 document.getElementById("soloBtn").onclick=()=>{ audioKick(); const n=document.getElementById("nameInput").value.trim(); if(n){sendWS({t:"setName",name:n});saveName();} sendWS({t:"join",mode:"solo",rules:getRules()}); };
 document.getElementById("autoBtn").onclick=()=>{ audioKick(); const n=document.getElementById("nameInput").value.trim(); if(n){sendWS({t:"setName",name:n});saveName();} sendWS({t:"join",mode:"auto"}); };
 document.getElementById("leaveBtn").onclick=()=>{ sendWS({t:"leave"}); location.reload(); };
@@ -392,7 +400,7 @@ function render(){
     se.innerHTML=`<div><span class="wind">${HONOR[p.wind]}</span>${p.score}</div><div class="nm">${p.name}${p.controller==="cpu"?'<span class="cpu"> [CPU]</span>':(p.connected?"":' <span class="cpu">[離席]</span>')}</div>`;
     // hand
     const he=document.querySelector(`.hand[data-pos="${pos}"]`); he.innerHTML="";
-    if(p.seat===mySeat && p.hand){
+    if(p.hand){   // 手牌が見える席(自分／観戦時は全員)は表向きに表示
       p.hand.forEach(t=>{ const el=tileEl(t); el.onclick=()=>onTileClick(t); he.append(el); });
       if(p.drawn){ const el=tileEl(p.drawn,{cls:"drawn"}); el.onclick=()=>onTileClick(p.drawn); he.append(el); }
     }else{

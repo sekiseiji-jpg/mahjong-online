@@ -99,17 +99,41 @@ function sanitizeRules(r) {
   return { hanchan: b(r.hanchan, false), aka: b(r.aka, true), kuitan: b(r.kuitan, true), tobi: b(r.tobi, true) };
 }
 
+// 観戦者に転送するイベント種別(自分視点専用のyourTurn/canReactは除く)
+const SPEC_FWD = new Set(['call', 'discard', 'handStart', 'handEnd', 'gameOver', 'chat', 'seatChange']);
+
 function makeTable(opts, code) {
   const id = 't' + (tableSeq++);
   const table = new Table(Object.assign({ cpuDelay: 700, reactWindow: 10000, nextDelay: 8000, reactDelay: 400 }, opts));
-  const rec = { id, table, code: code || null };
+  const rec = { id, table, code: code || null, spectators: new Set() };
   tables.set(id, rec);
-  // 各席の human に、その席のメッセージを転送
+  // 各席の human に、その席のメッセージを転送。観戦者には seat0 発火時のみ(重複回避)、全手牌公開ビューを配信
   table.onEvent((seat, msg) => {
     const cli = clientAtSeat(rec, seat);
     if (cli && cli.ws.readyState === 1) send(cli.ws, msg);
+    if (rec.spectators.size && seat === 0) {
+      let out = null;
+      if (msg.t === 'state') out = { t: 'state', state: rec.table.spectatorView() };
+      else if (SPEC_FWD.has(msg.t)) out = msg;
+      if (out) for (const sid of rec.spectators) { const sc = clients.get(sid); if (sc && sc.ws.readyState === 1) send(sc.ws, out); }
+    }
   });
   return rec;
+}
+function stopSpectating(cli) {
+  if (cli.spectating == null) return;
+  const rec = tables.get(cli.spectating);
+  if (rec) rec.spectators.delete(cli.id);
+  cli.spectating = null;
+}
+function spectate(cli, tableId) {
+  const rec = tables.get(tableId);
+  if (!rec || rec.table.phase === 'gameOver') { send(cli.ws, { t: 'error', msg: 'その卓は観戦できません' }); return; }
+  stopSpectating(cli);
+  rec.spectators.add(cli.id);
+  cli.spectating = tableId;
+  send(cli.ws, { t: 'spectating', tableId });
+  send(cli.ws, { t: 'state', state: rec.table.spectatorView() });
 }
 
 // 自動マッチング: 空きCPU席のある卓に着席、無ければ新卓を作り開始
@@ -209,8 +233,10 @@ wss.on('connection', (ws, req) => {
         }
         break;
       }
+      case 'spectate': spectate(cli, m.tableId); break;
       case 'leave':
         if (rec) rec.table.disconnectClient(cli.id);
+        stopSpectating(cli);
         cli.tableId = null; cli.seat = -1; broadcastLobby();
         break;
     }
@@ -219,6 +245,7 @@ wss.on('connection', (ws, req) => {
   ws.on('close', () => {
     const rec = cli.tableId ? tables.get(cli.tableId) : null;
     if (rec) rec.table.disconnectClient(cli.id);
+    stopSpectating(cli);
     clients.delete(id);
     // 誰も人間がいない gameOver/空卓は破棄
     for (const [tid, r] of tables) {
