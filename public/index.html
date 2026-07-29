@@ -62,6 +62,8 @@
   .hand .tile{width:5.4vmin;height:7.4vmin;}
   .hand.bottom .tile.sel,.hand.bottom .tile:active{transform:translateY(-1.4vmin);}
   .hand.bottom .tile.rec{outline:.35vmin solid var(--gold);outline-offset:-.35vmin;}
+  .hand.bottom .tile.kbcur{outline:.45vmin solid #4db6ff;outline-offset:-.45vmin;transform:translateY(-.9vmin);box-shadow:0 0 1.2vmin rgba(77,182,255,.7);}
+  .abtn .kh{font-size:.62em;opacity:.75;margin-left:.3em;font-weight:600;}
   /* 捨て牌 */
   .discards{position:absolute;display:grid;grid-auto-rows:min-content;gap:1px;z-index:3;grid-template-columns:repeat(6,auto);}
   .discards .tile{width:3.4vmin;height:4.8vmin;}
@@ -267,7 +269,7 @@ function faceShort(t){ if(t>=27)return HONOR[t-27]; return (t%9+1)+["m","p","s"]
 let ws, myId=null, myTable=null, mySeat=-1, state=null, pendingReact=null, myOptions=null, myRoomCode=null, isSpectator=false;
 // 端末ごとの永続ID(再接続で席に復帰するため)
 const PID=(function(){ try{ let p=localStorage.getItem("mj_pid"); if(!p){ p=(self.crypto&&crypto.randomUUID)?crypto.randomUUID():(Date.now()+"-"+Math.random().toString(36).slice(2)); localStorage.setItem("mj_pid",p);} return p; }catch(e){ return "anon"+Math.random(); } })();
-let sessionPw=null, _pwTry=null, everJoined=false, lastDisc=null;
+let sessionPw=null, _pwTry=null, everJoined=false, lastDisc=null, handCursor=0;
 // 牌譜リプレイ(この局のstateスナップショットを記録して後で再生)
 let replayFrames=[], replayMode=false, replayIdx=0, replaySaved=null;
 function connect(){
@@ -319,8 +321,8 @@ function handle(m){
     case "locked": gateLocked(m.seconds); break;
     case "rejoinFail": isSpectator=false; showLobby(); break;
     case "lobby": renderLobby(m); break;
-    case "joined": everJoined=true; isSpectator=false; mySeat=m.seat; myTable=m.tableId; myRoomCode=m.roomCode||null; document.getElementById("lobby").classList.remove("show"); document.getElementById("board").style.display=""; document.getElementById("seatBtn").style.display=""; document.getElementById("roomLbl").textContent=myRoomCode?("🔑"+myRoomCode):""; if(m.mode==="rejoin") flash("席に復帰しました",2000); else if(myRoomCode) flash("合言葉: "+myRoomCode+" (共有して友人を招待)",3000); setTimeout(fitTop,60); break;
-    case "spectating": isSpectator=true; document.getElementById("lobby").classList.remove("show"); document.getElementById("board").style.display=""; document.getElementById("roomLbl").textContent="👀 観戦中"; document.getElementById("seatBtn").style.display="none"; flash("👀 観戦モード",2000); setTimeout(fitTop,60); break;
+    case "joined": everJoined=true; isSpectator=false; mySeat=m.seat; myTable=m.tableId; myRoomCode=m.roomCode||null; document.getElementById("lobby").classList.remove("show"); document.getElementById("board").style.display=""; document.getElementById("seatBtn").style.display=""; document.getElementById("roomLbl").textContent=myRoomCode?("🔑"+myRoomCode):""; if(m.mode==="rejoin") flash("席に復帰しました",2000); else if(myRoomCode) flash("合言葉: "+myRoomCode+" (共有して友人を招待)",3000); blurInputs(); setTimeout(fitTop,60); break;
+    case "spectating": isSpectator=true; document.getElementById("lobby").classList.remove("show"); document.getElementById("board").style.display=""; document.getElementById("roomLbl").textContent="👀 観戦中"; document.getElementById("seatBtn").style.display="none"; flash("👀 観戦モード",2000); blurInputs(); setTimeout(fitTop,60); break;
     case "error": document.getElementById("lobbyErr").textContent=m.msg; break;
     case "state": if(replayMode) break; state=m.state; mySeat=state.seat; render(); if(state.phase==="playing") replayFrames.push(JSON.parse(JSON.stringify(state))); break;
     case "yourTurn": myOptions=m.options; showTurnControls(); Sound.draw(); break;
@@ -379,6 +381,46 @@ document.getElementById("leaveBtn").onclick=()=>{ sendWS({t:"leave"}); location.
 document.getElementById("seatBtn").onclick=showSeatModal;
 document.getElementById("muteBtn").onclick=toggleMute;
 window.addEventListener("keydown",e=>{ if((e.key==="m"||e.key==="M") && document.activeElement && document.activeElement.tagName!=="INPUT"){ toggleMute(); } });
+// ---- キーボード操作(打牌/鳴き/和了) ----
+window.addEventListener("keydown",e=>{
+  const ae=document.activeElement;
+  if(ae && (ae.tagName==="INPUT"||ae.tagName==="TEXTAREA")) return;   // 文字入力中は無効
+  if(e.ctrlKey||e.metaKey||e.altKey) return;
+  // 結果画面: Enterで「次へ」
+  if(document.getElementById("result").classList.contains("show")){
+    if(e.key==="Enter"){ const rb=document.getElementById("readyBtn"); if(rb){e.preventDefault();rb.click();} }
+    return;
+  }
+  // リプレイ中: ←→で移動、Escで戻る
+  if(replayMode){
+    if(e.key==="ArrowLeft"){e.preventDefault();showFrame(replayIdx-1);}
+    else if(e.key==="ArrowRight"){e.preventDefault();showFrame(replayIdx+1);}
+    else if(e.key==="Home"){e.preventDefault();showFrame(0);}
+    else if(e.key==="End"){e.preventDefault();showFrame(replayFrames.length-1);}
+    else if(e.key==="Escape"){e.preventDefault();exitReplay();}
+    return;
+  }
+  const ctl=document.getElementById("controls");
+  // 反応(ロン/ポン/チー/カン/スキップ): 数字で選択、Escでスキップ
+  if(pendingReact){
+    if(e.key==="Escape"){ const sk=ctl.querySelector('button[data-key="skip"]'); if(sk){e.preventDefault();sk.click();} return; }
+    const bn=ctl.querySelector('button[data-key="'+e.key+'"]'); if(bn){e.preventDefault();bn.click();}
+    return;
+  }
+  // 自分の手番: 打牌(←→で選ぶ, Enter/Spaceで切る, 数字で直接), T/R/K=ツモ/リーチ/カン
+  if(myOptions){
+    const kk=e.key.toLowerCase();
+    const byKey=ctl.querySelector('button[data-key="'+kk+'"]'); if(byKey){e.preventDefault();byKey.click();return;}
+    if(e.key==="Escape"){ const sk=ctl.querySelector('button[data-key="skip"]'); if(sk){e.preventDefault();sk.click();return;} }
+    const p=state&&state.players[mySeat];
+    const tiles=p?[...(p.hand||[]),...(p.drawn?[p.drawn]:[])]:[];
+    if(!tiles.length) return;
+    if(e.key==="ArrowLeft"){e.preventDefault(); handCursor=(handCursor-1+tiles.length)%tiles.length; updateHandCursor();}
+    else if(e.key==="ArrowRight"){e.preventDefault(); handCursor=(handCursor+1)%tiles.length; updateHandCursor();}
+    else if(e.key==="Enter"||e.key===" "){e.preventDefault(); const t=tiles[Math.min(Math.max(handCursor,0),tiles.length-1)]; if(t) onTileClick(t);}
+    else if(/^[0-9]$/.test(e.key)){ const idx=e.key==="0"?9:(+e.key-1); if(tiles[idx]){e.preventDefault(); handCursor=idx; onTileClick(tiles[idx]);} }
+  }
+});
 // 名前を記憶(次回から自動入力)
 (function(){ try{ const saved=localStorage.getItem("mj_name"); if(saved) document.getElementById("nameInput").value=saved; }catch(e){} })();
 function saveName(){ const n=document.getElementById("nameInput").value.trim(); if(n){ try{localStorage.setItem("mj_name",n);}catch(e){} } }
@@ -459,6 +501,7 @@ function render(){
     for(const m of p.melds){ const box=document.createElement("div"); box.className="meld"; (m.tiles||[]).slice().sort((a,b)=>a.t-b.t).forEach(t=>box.append(tileEl(t))); me.append(box); }
   }
   if(lastDisc) lastDisc.fresh=false;   // 打牌アニメは一度だけ
+  updateHandCursor();                  // キーボードカーソルの反映
   // 自分の手番でなければ操作クリア(反応中は別)
   if(!(myOptions && state.pending && state.pending.type==="turn")) {}
 }
@@ -473,13 +516,19 @@ function onTileClick(t){
 }
 function showTurnControls(){
   const ctl=document.getElementById("controls"); ctl.innerHTML="";
-  if(myOptions.canTsumo) ctl.append(btn("ツモ","win",()=>{ sendWS({t:"action",act:{type:"tsumo"}}); myOptions=null; clearControls(); }));
-  if(myOptions.canRiichi) ctl.append(btn("リーチ","",()=>enterRiichi()));
-  for(const k of (myOptions.kan||[])) ctl.append(btn((k.type==="ankan"?"暗槓":"加槓")+faceShort(k.tile),"",()=>{ sendWS({t:"action",act:{type:k.type,tile:k.tile}}); myOptions=null; clearControls(); }));
-  flash("あなたの番",700);
+  if(myOptions.canTsumo) ctl.append(btn("ツモ","win",()=>{ sendWS({t:"action",act:{type:"tsumo"}}); myOptions=null; clearControls(); },"t"));
+  if(myOptions.canRiichi) ctl.append(btn("リーチ","",()=>enterRiichi(),"r"));
+  let firstKan=true;
+  for(const k of (myOptions.kan||[])){ ctl.append(btn((k.type==="ankan"?"暗槓":"加槓")+faceShort(k.tile),"",()=>{ sendWS({t:"action",act:{type:k.type,tile:k.tile}}); myOptions=null; clearControls(); }, firstKan?"k":undefined)); firstKan=false; }
+  // キーボード: カーソルをツモ牌(なければ手牌末尾)に合わせる
+  const p=state&&state.players[mySeat];
+  handCursor = p ? (p.drawn ? p.hand.length : Math.max(0,p.hand.length-1)) : 0;
+  updateHandCursor();
+  if(!showTurnControls._hinted){ showTurnControls._hinted=true; flash("⌨ ←→で牌を選び Enter/Space で切る（数字=直接 / T=ツモ R=リーチ K=カン）",4000); }
+  else flash("あなたの番",700);
 }
 let riichiMode=false;
-function enterRiichi(){ riichiMode=true; const ctl=document.getElementById("controls"); ctl.innerHTML=""; ctl.append(btn("キャンセル","skip",()=>{riichiMode=false;showTurnControls();})); flash("リーチ！ 切る牌を選択");
+function enterRiichi(){ riichiMode=true; const ctl=document.getElementById("controls"); ctl.innerHTML=""; ctl.append(btn("キャンセル","skip",()=>{riichiMode=false;showTurnControls();},"skip")); flash("リーチ！ 切る牌を選択");
   // riichiモードでは打牌クリックを立直宣言に
   onTileClick=(t)=>{ sendWS({t:"action",act:{type:"riichi",id:t.id}}); myOptions=null; riichiMode=false; onTileClick=origTileClick; clearControls(); };
 }
@@ -487,17 +536,20 @@ const origTileClick=onTileClick;
 function showReactControls(){
   const ctl=document.getElementById("controls"); ctl.innerHTML="";
   const opts=pendingReact.options; const tile=pendingReact.tile;
-  const types=new Set(opts.map(o=>o.type));
-  if(types.has("ron")) ctl.append(btn("ロン","win",()=>react({type:"ron"})));
-  if(types.has("pon")) ctl.append(btn("ポン","",()=>react({type:"pon"})));
-  if(types.has("minkan")) ctl.append(btn("カン","",()=>react({type:"minkan"})));
+  const types=new Set(opts.map(o=>o.type)); let n=0;
+  if(types.has("ron")) ctl.append(btn("ロン","win",()=>react({type:"ron"}),String(++n)));
+  if(types.has("pon")) ctl.append(btn("ポン","",()=>react({type:"pon"}),String(++n)));
+  if(types.has("minkan")) ctl.append(btn("カン","",()=>react({type:"minkan"}),String(++n)));
   const chi=opts.find(o=>o.type==="chi");
-  if(chi){ if(chi.options.length===1) ctl.append(btn("チー","",()=>react({type:"chi",chi:chi.options[0]}))); else chi.options.forEach(o=>ctl.append(btn("チー"+o.map(faceShort).join(""),"",()=>react({type:"chi",chi:o})))); }
-  ctl.append(btn("スキップ","skip",()=>react({type:"skip"})));
+  if(chi){ if(chi.options.length===1) ctl.append(btn("チー","",()=>react({type:"chi",chi:chi.options[0]}),String(++n))); else chi.options.forEach(o=>ctl.append(btn("チー"+o.map(faceShort).join(""),"",()=>react({type:"chi",chi:o}),String(++n)))); }
+  ctl.append(btn("スキップ","skip",()=>react({type:"skip"}),"skip"));
 }
 function react(act){ sendWS({t:"action",act}); pendingReact=null; clearControls(); }
 function clearControls(){ document.getElementById("controls").innerHTML=""; }
-function btn(label,cls,fn){ const b=document.createElement("button"); b.className="abtn "+cls; b.textContent=label; b.onclick=fn; return b; }
+function updateHandCursor(){ const he=document.querySelector('.hand[data-pos="0"]'); if(!he)return; const tiles=[...he.children]; if(!tiles.length)return; if(handCursor>=tiles.length)handCursor=tiles.length-1; if(handCursor<0)handCursor=0; tiles.forEach((el,i)=>el.classList.toggle("kbcur", i===handCursor && !!myOptions)); }
+function blurInputs(){ const a=document.activeElement; if(a && (a.tagName==="INPUT"||a.tagName==="TEXTAREA")) a.blur(); }
+function keyHint(k){ return k==="skip"?"Esc":k.toUpperCase(); }
+function btn(label,cls,fn,key){ const b=document.createElement("button"); b.className="abtn "+cls; if(key){ b.dataset.key=key; b.innerHTML=escapeHtml(String(label))+'<span class="kh">['+keyHint(key)+']</span>'; } else b.textContent=label; b.onclick=fn; return b; }
 function flash(t,ms=1400){ const m=document.getElementById("msg"); m.textContent=t; m.classList.add("show"); clearTimeout(flash._t); flash._t=setTimeout(()=>m.classList.remove("show"),ms); }
 function popCall(seat,kind){ const pos=seatToPos(seat); const b=document.getElementById("board"); const el=document.createElement("div"); el.className="callpop"; el.textContent=kind;
   const map={0:{left:"50%",bottom:"20vmin"},1:{right:"22vmin",top:"50%"},2:{left:"50%",top:"18vmin"},3:{left:"22vmin",top:"50%"}}[pos];
@@ -512,7 +564,7 @@ function showBubble(seat, text, name, isStamp){ if(text==null)return; const pos=
   const map={0:{left:"50%",bottom:"26vmin"},1:{right:"20vmin",top:"42%"},2:{left:"50%",top:"24vmin"},3:{left:"20vmin",top:"42%"}}[pos];
   Object.assign(el.style,{position:"absolute",transform:"translate(-50%,-50%)"},map); b.append(el); setTimeout(()=>el.remove(),3200); }
 function escapeHtml(s){ return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
-document.getElementById("chatBtn").onclick=()=>{ const p=document.getElementById("chatPanel"); p.classList.toggle("show"); if(p.classList.contains("show")) document.getElementById("chatText").focus(); };
+document.getElementById("chatBtn").onclick=()=>{ const p=document.getElementById("chatPanel"); p.classList.toggle("show"); if(p.classList.contains("show")) document.getElementById("chatText").focus(); else blurInputs(); };
 document.getElementById("chatSend").onclick=()=>sendChat(document.getElementById("chatText").value,false);
 document.getElementById("chatText").addEventListener("keydown",e=>{ if(e.key==="Enter") sendChat(document.getElementById("chatText").value,false); });
 buildStamps();
