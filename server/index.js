@@ -15,6 +15,47 @@ const { Table } = require('./table');
 const PORT = process.env.PORT || 8787;
 const PUBLIC = path.join(__dirname, '..', 'public');
 
+// ---- 合言葉(パスワード)認証 ----
+//  パスワードは環境変数 GAME_PASSWORD で設定(公開リポジトリに平文を置かない)。
+//  未設定なら認証なし(ローカル開発用)。
+const PASSWORD = process.env.GAME_PASSWORD || '';
+const MAX_FAILS = 3;                    // 3回間違えたら
+const LOCK_MS = 10 * 60 * 1000;         // 10分間ロック
+const authTracker = new Map();          // ip -> { fails, lockUntil }
+
+function clientIp(req) {
+  const xff = req.headers['x-forwarded-for'];
+  if (xff) return String(xff).split(',')[0].trim();
+  return (req.socket && req.socket.remoteAddress) || 'unknown';
+}
+function lockRemainingMs(ip) {
+  const rec = authTracker.get(ip);
+  if (rec && rec.lockUntil && rec.lockUntil > Date.now()) return rec.lockUntil - Date.now();
+  return 0;
+}
+// 認証試行を処理し、送るべきメッセージを返す。成功時は cli.authed=true。
+function tryAuth(cli, password) {
+  const ip = cli.ip;
+  const remain = lockRemainingMs(ip);
+  if (remain > 0) return { t: 'locked', seconds: Math.ceil(remain / 1000) };
+  if (PASSWORD === '' || password === PASSWORD) {
+    cli.authed = true;
+    authTracker.delete(ip);             // 成功したら失敗カウントをリセット
+    return { t: 'authOk' };
+  }
+  // 失敗
+  const rec = authTracker.get(ip) || { fails: 0, lockUntil: 0 };
+  rec.fails += 1;
+  if (rec.fails >= MAX_FAILS) {
+    rec.lockUntil = Date.now() + LOCK_MS;
+    rec.fails = 0;
+    authTracker.set(ip, rec);
+    return { t: 'locked', seconds: Math.ceil(LOCK_MS / 1000) };
+  }
+  authTracker.set(ip, rec);
+  return { t: 'authFail', remaining: MAX_FAILS - rec.fails };
+}
+
 // ---- 静的配信 ----
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.webp': 'image/webp', '.json': 'application/json' };
 const server = http.createServer((req, res) => {
@@ -117,18 +158,25 @@ function joinRoom(cli, code) {
 
 function broadcastLobby() {
   const info = { t: 'lobby', tables: [...tables.values()].map(r => ({ id: r.id, phase: r.table.phase, humans: r.table.seats.filter(s => s.controller === 'human' && s.connected).length })) };
-  for (const cli of clients.values()) if (!cli.tableId) send(cli.ws, info);
+  for (const cli of clients.values()) if (cli.authed && !cli.tableId) send(cli.ws, info);
 }
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
   const id = clientSeq++;
-  const cli = { id, ws, name: 'プレイヤー' + id, tableId: null, seat: -1 };
+  const ip = clientIp(req);
+  // パスワード未設定なら最初から認証済み扱い
+  const cli = { id, ws, name: 'プレイヤー' + id, tableId: null, seat: -1, ip, authed: (PASSWORD === '') };
   clients.set(id, cli);
-  send(ws, { t: 'hello', id });
-  broadcastLobby();
+  send(ws, { t: 'hello', id, needAuth: (PASSWORD !== '') });
+  // 既にロック中ならすぐ知らせる
+  const remain = lockRemainingMs(ip);
+  if (!cli.authed && remain > 0) send(ws, { t: 'locked', seconds: Math.ceil(remain / 1000) });
 
   ws.on('message', (raw) => {
     let m; try { m = JSON.parse(raw); } catch (e) { return; }
+    // ---- 認証: 未認証の間は auth 以外を一切受け付けない ----
+    if (m.t === 'auth') { send(ws, tryAuth(cli, String(m.password || ''))); if (cli.authed) broadcastLobby(); return; }
+    if (!cli.authed) return;   // 未認証は無視(合言葉を突破しない限り操作不可)
     const rec = cli.tableId ? tables.get(cli.tableId) : null;
     switch (m.t) {
       case 'setName': cli.name = String(m.name || '').slice(0, 16) || cli.name; break;

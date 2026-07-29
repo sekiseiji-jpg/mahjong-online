@@ -134,7 +134,15 @@
   </div>
 </div>
 
-<div class="overlay show" id="lobby"><div class="sheet">
+<div class="overlay show" id="gate"><div class="sheet">
+  <h1>🀄 麻雀オンライン</h1>
+  <p>入室するには合言葉が必要です。</p>
+  <div><input id="pwInput" type="password" placeholder="合言葉" autocomplete="off" autocapitalize="off" maxlength="64"></div>
+  <div class="row"><button class="abtn" id="pwBtn">入室</button></div>
+  <div id="gateErr" style="color:#ff8a8a;font-size:1.8vmin;margin-top:1vmin;min-height:1.8vmin"></div>
+</div></div>
+
+<div class="overlay" id="lobby"><div class="sheet">
   <h1>麻雀オンライン</h1>
   <p>4人打ちリーチ麻雀。あなた＋人間/CPU3人。<br>途中参加・離脱(CPU代打ち)対応。</p>
   <div><input id="nameInput" placeholder="名前" maxlength="16"></div>
@@ -181,7 +189,10 @@ function setStatus(s){ document.getElementById("status").textContent=s; }
 
 function handle(m){
   switch(m.t){
-    case "hello": myId=m.id; break;
+    case "hello": myId=m.id; if(!m.needAuth) showLobby(); else document.getElementById("pwInput").focus(); break;
+    case "authOk": showLobby(); break;
+    case "authFail": gateFail(m.remaining); break;
+    case "locked": gateLocked(m.seconds); break;
     case "lobby": renderLobby(m); break;
     case "joined": mySeat=m.seat; myTable=m.tableId; myRoomCode=m.roomCode||null; document.getElementById("lobby").classList.remove("show"); document.getElementById("board").style.display=""; document.getElementById("roomLbl").textContent=myRoomCode?("🔑"+myRoomCode):""; if(myRoomCode) flash("合言葉: "+myRoomCode+" (共有して友人を招待)",3000); break;
     case "error": document.getElementById("lobbyErr").textContent=m.msg; break;
@@ -195,6 +206,26 @@ function handle(m){
     case "gameOver": showGameOver(m); break;
   }
 }
+
+// ---- 合言葉(パスワード)ゲート ----
+function showLobby(){ document.getElementById("gate").classList.remove("show"); document.getElementById("gateErr").textContent=""; if(lockTimer){clearInterval(lockTimer);lockTimer=null;} document.getElementById("lobby").classList.add("show"); const n=document.getElementById("nameInput"); if(n) n.focus(); }
+function submitPw(){ const v=document.getElementById("pwInput").value; if(!v){ document.getElementById("gateErr").textContent="合言葉を入力してください。"; return; } sendWS({t:"auth",password:v}); }
+function gateFail(remaining){ const el=document.getElementById("gateErr"); el.textContent="合言葉が違います。あと "+remaining+" 回間違えると10分間ロックされます。"; const p=document.getElementById("pwInput"); p.value=""; p.focus(); }
+let lockTimer=null;
+function gateLocked(seconds){
+  const inp=document.getElementById("pwInput"), btn=document.getElementById("pwBtn"), el=document.getElementById("gateErr");
+  inp.disabled=true; btn.disabled=true; inp.value="";
+  let s=Math.max(0,seconds|0);
+  const tick=()=>{
+    const mm=Math.floor(s/60), ss=String(s%60).padStart(2,"0");
+    if(s>0){ el.textContent="間違いが3回に達しました。あと "+mm+":"+ss+" 待ってください。"; }
+    else { clearInterval(lockTimer); lockTimer=null; inp.disabled=false; btn.disabled=false; el.textContent="もう一度入力できます。"; inp.focus(); }
+    s--;
+  };
+  clearInterval(lockTimer); tick(); lockTimer=setInterval(tick,1000);
+}
+document.getElementById("pwBtn").onclick=submitPw;
+document.getElementById("pwInput").addEventListener("keydown",e=>{ if(e.key==="Enter") submitPw(); });
 
 // ---- 画面: ロビー ----
 function renderLobby(m){ document.getElementById("lobbyInfo").textContent = "対局中の卓: "+m.tables.filter(t=>t.phase!=="gameOver").length+" (参加者 "+m.tables.reduce((a,t)=>a+t.humans,0)+"人)"; }
