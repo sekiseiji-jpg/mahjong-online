@@ -52,7 +52,8 @@
   .sc-right{left:calc(50% + 20vmin);top:50%;transform:translate(-50%,-50%);}
   /* 手牌 */
   .hand{position:absolute;display:flex;align-items:flex-end;gap:2px;z-index:7;}
-  .hand.bottom{left:50%;bottom:1vmin;transform:translateX(-50%);flex-wrap:wrap;justify-content:center;max-width:97vw;width:var(--myhw);row-gap:.8vmin;}
+  .hand.bottom{left:50%;bottom:1vmin;transform:translateX(-50%);flex-wrap:nowrap;justify-content:center;max-width:97vw;width:var(--myhw);row-gap:.8vmin;}
+  .tsize-l .hand.bottom{flex-wrap:wrap;}   /* 大の時だけ2段 */
   .hand.top{left:50%;top:calc(var(--topbar-h,5vmin) + .8vmin);transform:translateX(-50%) rotate(180deg);}
   .hand.left{left:calc(var(--h)/2 + 1vmin);top:50%;transform:translate(-50%,-50%) rotate(90deg);}
   .hand.right{right:calc(var(--h)/2 + 1vmin);left:auto;top:50%;transform:translate(50%,-50%) rotate(-90deg);}
