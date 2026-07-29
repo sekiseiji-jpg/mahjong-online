@@ -72,10 +72,10 @@
   /* 捨て牌 */
   .discards{position:absolute;display:grid;grid-auto-rows:min-content;gap:1px;z-index:3;grid-template-columns:repeat(6,auto);}
   .discards .tile{width:3.4vmin;height:4.8vmin;}
-  .discards.bottom{left:50%;bottom:calc(var(--myh) + 9vmin);transform:translateX(-50%);}
-  .discards.top{left:50%;top:calc(var(--h) + 9vmin);transform:translateX(-50%) rotate(180deg);}
-  .discards.left{left:calc(var(--h) + 9vmin);top:50%;transform:translateY(-50%) rotate(90deg);}
-  .discards.right{right:calc(var(--h) + 9vmin);top:50%;transform:translateY(-50%) rotate(-90deg);}
+  .discards.bottom{left:50%;top:calc(50% + 10vmin);bottom:auto;transform:translateX(-50%);}
+  .discards.top{left:50%;bottom:calc(50% + 10vmin);top:auto;transform:translateX(-50%) rotate(180deg);}
+  .discards.left{left:calc(var(--h) + 26vmin);top:50%;transform:translateY(-50%) rotate(90deg);}
+  .discards.right{right:calc(var(--h) + 26vmin);top:50%;transform:translateY(-50%) rotate(-90deg);}
   .discards .tile.tsumogiri{opacity:.72;}
   .discards .tile.last{box-shadow:0 0 0 2px var(--gold);}
   /* 鳴き */
@@ -162,7 +162,7 @@
   .winpulse{animation:winPulse 1s ease-in-out infinite;}
   @keyframes winPulse{0%,100%{box-shadow:0 0 0 2px var(--gold)}50%{box-shadow:0 0 1.4vmin .3vmin var(--gold)}}
   /* 牌譜リプレイ操作バー */
-  #replayBar{position:absolute;left:50%;bottom:2vmin;transform:translateX(-50%);z-index:45;display:none;align-items:center;gap:1vmin;
+  #replayBar{position:absolute;left:50%;bottom:calc(var(--myh) + 2.5vmin);transform:translateX(-50%);z-index:45;display:none;align-items:center;gap:1vmin;
     background:rgba(6,32,20,.96);border:1px solid var(--gold);border-radius:12px;padding:.8vmin 1.4vmin;box-shadow:0 3px 12px rgba(0,0,0,.5);}
   #replayBar.show{display:flex;}
   #replayBar button{font:inherit;font-size:2.4vmin;color:#fff;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);border-radius:8px;padding:.4vmin 1.2vmin;cursor:pointer;}
