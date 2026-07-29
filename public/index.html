@@ -52,7 +52,7 @@
   .sc-right{left:calc(50% + 20vmin);top:50%;transform:translate(-50%,-50%);}
   /* 手牌 */
   .hand{position:absolute;display:flex;align-items:flex-end;gap:2px;z-index:7;}
-  .hand.bottom{left:50%;bottom:1vmin;transform:translateX(-50%);}
+  .hand.bottom{left:50%;bottom:1vmin;transform:translateX(-50%);flex-wrap:wrap;justify-content:center;max-width:97vw;row-gap:.8vmin;}
   .hand.top{left:50%;top:calc(var(--topbar-h,5vmin) + .8vmin);transform:translateX(-50%) rotate(180deg);}
   .hand.left{left:calc(var(--h)/2 + 1vmin);top:50%;transform:translate(-50%,-50%) rotate(90deg);}
   .hand.right{right:calc(var(--h)/2 + 1vmin);left:auto;top:50%;transform:translate(50%,-50%) rotate(-90deg);}
@@ -168,6 +168,12 @@
     #stampRow .stamp{font-size:15px;padding:8px 12px;}
     #chatText,#chatSend{font-size:16px;}
     .sheet input{font-size:16px;}
+  }
+  /* スマホ縦: 自分の手牌を2段(上段/下段)に。牌も大きく押しやすく＝↑↓で段移動 */
+  @media (max-aspect-ratio: 3/4){
+    .hand.bottom{width:88vmin;max-width:97vw;bottom:.6vmin;}
+    .hand.bottom .tile{width:11.4vmin;height:15.5vmin;}
+    .hand.bottom .tile.drawn{margin-left:0;outline:.3vmin solid rgba(255,255,255,.55);outline-offset:-.3vmin;}
   }
 </style>
 </head>
@@ -417,7 +423,10 @@ window.addEventListener("keydown",e=>{
     if(!tiles.length) return;
     if(e.key==="ArrowLeft"){e.preventDefault(); handCursor=(handCursor-1+tiles.length)%tiles.length; updateHandCursor();}
     else if(e.key==="ArrowRight"){e.preventDefault(); handCursor=(handCursor+1)%tiles.length; updateHandCursor();}
-    else if(e.key==="Enter"||e.key===" "){e.preventDefault(); const t=tiles[Math.min(Math.max(handCursor,0),tiles.length-1)]; if(t) onTileClick(t);}
+    else if(e.key==="ArrowUp"){e.preventDefault(); moveCursorRow(-1);}
+    else if(e.key==="ArrowDown"){e.preventDefault(); moveCursorRow(1);}
+    else if(e.key==="Enter"){e.preventDefault(); const t=tiles[tiles.length-1]; if(t) onTileClick(t);}          // 右端(ツモ牌)を切る
+    else if(e.key===" "){e.preventDefault(); const t=tiles[Math.min(Math.max(handCursor,0),tiles.length-1)]; if(t) onTileClick(t);}  // 選択中の牌を切る
     else if(/^[0-9]$/.test(e.key)){ const idx=e.key==="0"?9:(+e.key-1); if(tiles[idx]){e.preventDefault(); handCursor=idx; onTileClick(tiles[idx]);} }
   }
 });
@@ -524,7 +533,7 @@ function showTurnControls(){
   const p=state&&state.players[mySeat];
   handCursor = p ? (p.drawn ? p.hand.length : Math.max(0,p.hand.length-1)) : 0;
   updateHandCursor();
-  if(!showTurnControls._hinted){ showTurnControls._hinted=true; flash("⌨ ←→で牌を選び Enter/Space で切る（数字=直接 / T=ツモ R=リーチ K=カン）",4000); }
+  if(!showTurnControls._hinted){ showTurnControls._hinted=true; flash("⌨ Enter=右端(ツモ牌) ／ ←→↑↓で選び Space=その牌 ／ 数字=直接 ／ T R K",4200); }
   else flash("あなたの番",700);
 }
 let riichiMode=false;
@@ -548,6 +557,18 @@ function react(act){ sendWS({t:"action",act}); pendingReact=null; clearControls(
 function clearControls(){ document.getElementById("controls").innerHTML=""; }
 function updateHandCursor(){ const he=document.querySelector('.hand[data-pos="0"]'); if(!he)return; const tiles=[...he.children]; if(!tiles.length)return; if(handCursor>=tiles.length)handCursor=tiles.length-1; if(handCursor<0)handCursor=0; tiles.forEach((el,i)=>el.classList.toggle("kbcur", i===handCursor && !!myOptions)); }
 function blurInputs(){ const a=document.activeElement; if(a && (a.tagName==="INPUT"||a.tagName==="TEXTAREA")) a.blur(); }
+// 上下キー: 2段折り返し時に上段/下段の同じ位置あたりの牌へカーソル移動
+function moveCursorRow(dir){
+  const he=document.querySelector('.hand[data-pos="0"]'); if(!he)return;
+  const tiles=[...he.children]; if(!tiles.length)return;
+  const cur=tiles[Math.min(Math.max(handCursor,0),tiles.length-1)]; const cr=cur.getBoundingClientRect();
+  const cx=(cr.left+cr.right)/2; let best=-1,bestDx=1e9;
+  tiles.forEach((el,i)=>{ const r=el.getBoundingClientRect();
+    const other = dir<0 ? r.top < cr.top-2 : r.top > cr.top+2;
+    if(other){ const dx=Math.abs((r.left+r.right)/2-cx); if(dx<bestDx){bestDx=dx;best=i;} }
+  });
+  if(best>=0){ handCursor=best; updateHandCursor(); }
+}
 function keyHint(k){ return k==="skip"?"Esc":k.toUpperCase(); }
 function btn(label,cls,fn,key){ const b=document.createElement("button"); b.className="abtn "+cls; if(key){ b.dataset.key=key; b.innerHTML=escapeHtml(String(label))+'<span class="kh">['+keyHint(key)+']</span>'; } else b.textContent=label; b.onclick=fn; return b; }
 function flash(t,ms=1400){ const m=document.getElementById("msg"); m.textContent=t; m.classList.add("show"); clearTimeout(flash._t); flash._t=setTimeout(()=>m.classList.remove("show"),ms); }
