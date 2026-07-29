@@ -96,7 +96,7 @@ function findRoom(code) { return [...tables.values()].find(r => r.code === code 
 function sanitizeRules(r) {
   r = r || {};
   const b = (v, d) => (typeof v === 'boolean' ? v : d);
-  return { hanchan: b(r.hanchan, false), aka: b(r.aka, true), kuitan: b(r.kuitan, true), tobi: b(r.tobi, true) };
+  return { hanchan: b(r.hanchan, false), aka: b(r.aka, true), kuitan: b(r.kuitan, true), tobi: b(r.tobi, true), wareme: b(r.wareme, false) };
 }
 
 // 観戦者に転送するイベント種別(自分視点専用のyourTurn/canReactは除く)

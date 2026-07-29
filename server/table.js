@@ -15,7 +15,7 @@ class Table {
     this.E = createEngine();
     this.G = this.E.G;
     this.opts = Object.assign({
-      hanchan: false, aka: true, kuitan: true, tobi: true, uma: true,
+      hanchan: false, aka: true, kuitan: true, tobi: true, uma: true, wareme: false,
       level: 'normal', cpuDelay: 500, reactWindow: 8000, nextDelay: 6000, reactDelay: 300,
     }, opts);
     this.seats = [0, 1, 2, 3].map(i => ({
@@ -104,7 +104,7 @@ class Table {
     this.G.hanchan = this.opts.hanchan; this.G.aka = this.opts.aka;
     this.G.kuitan = this.opts.kuitan; this.G.tobi = this.opts.tobi;
     this.G.uma = this.opts.uma; this.G.level = this.opts.level;
-    this.G.wareme = false;
+    this.G.wareme = !!this.opts.wareme;
     this.G.round = 0; this.G.honba = 0; this.G.riichiSticks = 0; this.G.dealer = 0; this.G.wRound = 0;
     this.G.players = [0, 1, 2, 3].map(i => this.E.freshPlayer(i));
     this.phase = 'playing';
@@ -131,6 +131,12 @@ class Table {
     for (let r = 0; r < 3; r++) for (let i = 0; i < 4; i++) { const s = (G.dealer + i) % 4; for (let k = 0; k < 4; k++) G.players[s].hand.push(this._draw()); }
     for (let i = 0; i < 4; i++) { const s = (G.dealer + i) % 4; G.players[s].hand.push(this._draw()); }
     for (const p of G.players) E.sortHand(p.hand);
+    // 割れ目: サイコロを振って割れ目の家(親からsum番目)を決める。settleWinが倍化を処理。
+    if (G.wareme) {
+      const r = () => 1 + Math.floor(Math.random() * 6);
+      G.dice = [r(), r()]; G.diceSum = G.dice[0] + G.dice[1];
+      G.waremeSeat = (G.dealer + G.diceSum - 1) % 4; G.diceReady = true;
+    } else { G.waremeSeat = -1; G.dice = null; G.diceSum = 0; G.diceReady = false; }
     G.turn = G.dealer; G.running = true;
     this.phase = 'playing';
     this.broadcast({ t: 'handStart', round: G.round, honba: G.honba, dealer: G.dealer, wRound: G.wRound });
@@ -542,7 +548,8 @@ class Table {
       seat, phase: this.phase, turn: G.turn, dealer: G.dealer, round: G.round, honba: G.honba,
       wRound: G.wRound, riichiSticks: G.riichiSticks, wallRemain: this.wallRemain(),
       dora: G.doraIndicators.map(d => this._tile(d)),
-      rules: { hanchan: !!G.hanchan, aka: !!G.aka, kuitan: !!G.kuitan, tobi: !!G.tobi },
+      rules: { hanchan: !!G.hanchan, aka: !!G.aka, kuitan: !!G.kuitan, tobi: !!G.tobi, wareme: !!G.wareme },
+      waremeSeat: (G.wareme && G.waremeSeat >= 0) ? G.waremeSeat : -1, diceSum: G.wareme ? (G.diceSum || 0) : 0,
       players,
       pending: this.pending && this.pending.seat === seat ? { type: this.pending.type } : (this.pending && this.pending.type === 'react' ? { type: 'react' } : null),
       seats: this.seats.map(s => ({ seat: s.seat, controller: s.controller, name: s.name, connected: s.connected, isHost: s.clientId && s.clientId === this.hostId })),
