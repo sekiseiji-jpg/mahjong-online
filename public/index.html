@@ -90,10 +90,11 @@
   /* 鳴き */
   .melds{position:absolute;display:flex;gap:4px;z-index:6;}
   .melds .tile{width:3.4vmin;height:4.8vmin;}
-  .melds.bottom{right:1vmin;bottom:1vmin;}
-  .melds.top{left:1vmin;top:calc(var(--topbar-h,5vmin) + .8vmin);transform:rotate(180deg);}
-  .melds.left{left:1vmin;bottom:1vmin;transform:rotate(90deg);transform-origin:left bottom;}
-  .melds.right{right:1vmin;top:1vmin;transform:rotate(-90deg);transform-origin:right top;}
+  /* 晒し牌(鳴き)は手牌に被らないよう手牌の外側へ1段離して表示 */
+  .melds.bottom{right:1vmin;bottom:calc(var(--myh) + 2.6vmin);}
+  .melds.top{left:1vmin;top:calc(var(--topbar-h,5vmin) + var(--h) + 3vmin);transform:rotate(180deg);}
+  .melds.left{left:calc(var(--h) + 3vmin);bottom:1vmin;transform:rotate(90deg) translateX(-100%);transform-origin:left bottom;}
+  .melds.right{right:calc(var(--h) + 3vmin);top:1vmin;transform:rotate(-90deg) translateY(-100%);transform-origin:right top;}
   .meld{display:flex;gap:1px;}
   /* 操作ボタン */
   #controls{position:absolute;left:50%;bottom:10vmin;transform:translateX(-50%);z-index:20;display:flex;gap:1vmin;flex-wrap:wrap;justify-content:center;}
