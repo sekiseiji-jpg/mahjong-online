@@ -69,6 +69,8 @@
   .hand.bottom .tile.sel,.hand.bottom .tile:active{transform:translateY(-1.4vmin);}
   .hand.bottom .tile.rec{outline:.35vmin solid var(--gold);outline-offset:-.35vmin;}
   .hand.bottom .tile.kbcur{outline:.45vmin solid #4db6ff;outline-offset:-.45vmin;transform:translateY(-.9vmin);box-shadow:0 0 1.2vmin rgba(77,182,255,.7);}
+  /* タップで選択中の牌: 半分持ち上げ(もう一度タップで切る) */
+  .hand.bottom .tile.armed{transform:translateY(calc(var(--myhth) * -0.5));z-index:8;outline:.5vmin solid var(--gold);outline-offset:-.5vmin;box-shadow:0 0 2vmin rgba(230,180,34,.95),0 1vmin 1.6vmin rgba(0,0,0,.6);}
   .abtn .kh{font-size:.62em;opacity:.75;margin-left:.3em;font-weight:600;}
   .abtn.kbfocus{outline:.4vmin solid #4db6ff;outline-offset:.3vmin;box-shadow:0 0 1.6vmin rgba(77,182,255,.85);transform:translateY(-.4vmin);}
   /* 捨て牌 */
@@ -239,8 +241,8 @@
   <p>4人打ちリーチ麻雀。あなた＋人間/CPU3人。<br>途中参加・離脱(CPU代打ち)対応。</p>
   <div><input id="nameInput" placeholder="名前" maxlength="16"></div>
   <div id="rulesBox">
-    <label><input type="radio" name="rule_len" value="tonpu" checked>東風戦</label>
-    <label><input type="radio" name="rule_len" value="hanchan">半荘戦</label>
+    <label><input type="radio" name="rule_len" value="tonpu">東風戦</label>
+    <label><input type="radio" name="rule_len" value="hanchan" checked>半荘戦</label>
     <label><input type="checkbox" id="rule_aka" checked>赤ドラ</label>
     <label><input type="checkbox" id="rule_kuitan" checked>喰いタン</label>
     <label><input type="checkbox" id="rule_tobi" checked>トビ終了</label>
@@ -436,8 +438,8 @@ window.addEventListener("keydown",e=>{
     const p=state&&state.players[mySeat];
     const tiles=p?[...(p.hand||[]),...(p.drawn?[p.drawn]:[])]:[];
     if(!tiles.length) return;
-    if(e.key==="ArrowLeft"){e.preventDefault(); handCursor=(handCursor-1+tiles.length)%tiles.length; updateHandCursor();}
-    else if(e.key==="ArrowRight"){e.preventDefault(); handCursor=(handCursor+1)%tiles.length; updateHandCursor();}
+    if(e.key==="ArrowLeft"){e.preventDefault(); armedTile=null; handCursor=(handCursor-1+tiles.length)%tiles.length; updateHandCursor();}
+    else if(e.key==="ArrowRight"){e.preventDefault(); armedTile=null; handCursor=(handCursor+1)%tiles.length; updateHandCursor();}
     else if(e.key==="ArrowUp"){e.preventDefault(); moveCursorRow(-1);}
     else if(e.key==="ArrowDown"){e.preventDefault(); moveCursorRow(1);}
     else if(e.key==="Enter"||e.key===" "){e.preventDefault(); const t=tiles[Math.min(Math.max(handCursor,0),tiles.length-1)]; if(t) onTileClick(t);}  // 選択中の牌を切る
@@ -457,7 +459,7 @@ function getRules(){ const r={
   try{ localStorage.setItem("mj_rules", JSON.stringify(r)); }catch(e){}
   return r; }
 (function(){ try{ const r=JSON.parse(localStorage.getItem("mj_rules")||"null"); if(r){
-  document.querySelector('input[name=rule_len][value="'+(r.hanchan?"hanchan":"tonpu")+'"]').checked=true;
+  // 局長(東風/半荘)は既定(半荘)を優先し復元しない。赤・喰い・トビ・割れ目は前回を復元。
   document.getElementById("rule_aka").checked=r.aka!==false;
   document.getElementById("rule_kuitan").checked=r.kuitan!==false;
   document.getElementById("rule_tobi").checked=r.tobi!==false;
@@ -512,8 +514,9 @@ function render(){
     // hand
     const he=document.querySelector(`.hand[data-pos="${pos}"]`); he.innerHTML="";
     if(p.hand){   // 手牌が見える席(自分／観戦時は全員)は表向きに表示
-      p.hand.forEach(t=>{ const el=tileEl(t); el.onclick=()=>onTileClick(t); he.append(el); });
-      if(p.drawn){ const el=tileEl(p.drawn,{cls:"drawn"}); el.onclick=()=>onTileClick(p.drawn); he.append(el); }
+      const mine=(p.seat===mySeat);
+      p.hand.forEach(t=>{ const el=tileEl(t); if(mine&&myOptions&&armedTile===t.id)el.classList.add("armed"); el.onclick=()=>tapTileO(t); he.append(el); });
+      if(p.drawn){ const el=tileEl(p.drawn,{cls:"drawn"}); if(mine&&myOptions&&armedTile===p.drawn.id)el.classList.add("armed"); el.onclick=()=>tapTileO(p.drawn); he.append(el); }
     }else{
       for(let i=0;i<p.handCount;i++) he.append(tileEl(null,{back:true}));
       if(p.drawnCount) he.append(tileEl(null,{back:true,cls:"drawn"}));
@@ -535,14 +538,21 @@ function render(){
 }
 
 // ---- 手番操作 ----
-let selTileId=null;
+let selTileId=null, armedTile=null;   // armedTile: タップで選択中(半分持ち上げ)の牌id。再タップで切る
+// タップ2段階(誤打防止): 1回目=選択して半分持ち上げ、同じ牌を2回目タップで切る。別牌タップで選択移動。
+function tapTileO(t){
+  if(!myOptions) return;
+  if(armedTile===t.id){ armedTile=null; onTileClick(t); }   // 2回目 → 決定
+  else { armedTile=t.id; render(); flash(riichiMode?"リーチ宣言牌：もう一度タップで決定":"もう一度タップで切る",1400); }  // 1回目 → 選択
+}
 function onTileClick(t){
   if(!myOptions) return;                       // 自分の手番でない
   // 打牌
   sendWS({t:"action",act:{type:"discard",id:t.id}});
-  myOptions=null; clearControls();
+  myOptions=null; armedTile=null; clearControls();
 }
 function showTurnControls(){
+  armedTile=null;   // 新しい手番: タップ選択をリセット
   const ctl=document.getElementById("controls"); ctl.innerHTML="";
   if(myOptions.canTsumo) ctl.append(btn("ツモ","win",()=>{ sendWS({t:"action",act:{type:"tsumo"}}); myOptions=null; clearControls(); },"t"));
   if(myOptions.canRiichi) ctl.append(btn("リーチ","",()=>enterRiichi(),"r"));
@@ -556,9 +566,9 @@ function showTurnControls(){
   else flash("あなたの番",700);
 }
 let riichiMode=false;
-function enterRiichi(){ riichiMode=true; const ctl=document.getElementById("controls"); ctl.innerHTML=""; ctl.append(btn("キャンセル","skip",()=>{riichiMode=false;showTurnControls();},"skip")); flash("リーチ！ 切る牌を選択");
+function enterRiichi(){ riichiMode=true; armedTile=null; const ctl=document.getElementById("controls"); ctl.innerHTML=""; ctl.append(btn("キャンセル","skip",()=>{riichiMode=false;armedTile=null;showTurnControls();},"skip")); flash("リーチ！ 切る牌を選択");
   // riichiモードでは打牌クリックを立直宣言に
-  onTileClick=(t)=>{ sendWS({t:"action",act:{type:"riichi",id:t.id}}); myOptions=null; riichiMode=false; onTileClick=origTileClick; clearControls(); };
+  onTileClick=(t)=>{ sendWS({t:"action",act:{type:"riichi",id:t.id}}); myOptions=null; armedTile=null; riichiMode=false; onTileClick=origTileClick; clearControls(); };
 }
 const origTileClick=onTileClick;
 function showReactControls(){
