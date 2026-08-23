@@ -73,6 +73,9 @@
   .hand.bottom .tile.armed{transform:translateY(calc(var(--myhth) * -0.5));z-index:8;outline:.5vmin solid var(--gold);outline-offset:-.5vmin;box-shadow:0 0 2vmin rgba(230,180,34,.95),0 1vmin 1.6vmin rgba(0,0,0,.6);}
   .abtn .kh{font-size:.62em;opacity:.75;margin-left:.3em;font-weight:600;}
   .abtn.kbfocus{outline:.4vmin solid #4db6ff;outline-offset:.3vmin;box-shadow:0 0 1.6vmin rgba(77,182,255,.85);transform:translateY(-.4vmin);}
+  /* タップ1回目で選択中の鳴きボタン(もう一度で実行) */
+  .abtn.armed{outline:.5vmin solid #fff;outline-offset:.3vmin;transform:translateY(-.6vmin) scale(1.06);box-shadow:0 0 2vmin rgba(255,255,255,.9),0 .5vmin 1.2vmin rgba(0,0,0,.5);animation:armedPulse .9s ease-in-out infinite;}
+  @keyframes armedPulse{0%,100%{filter:brightness(1.05);}50%{filter:brightness(1.35);}}
   /* 捨て牌 */
   .discards{position:absolute;display:grid;grid-auto-rows:min-content;gap:1px;z-index:3;grid-template-columns:repeat(6,auto);}
   .discards .tile{width:3.4vmin;height:4.8vmin;}
@@ -557,7 +560,7 @@ function showTurnControls(){
   if(myOptions.canTsumo) ctl.append(btn("ツモ","win",()=>{ sendWS({t:"action",act:{type:"tsumo"}}); myOptions=null; clearControls(); },"t"));
   if(myOptions.canRiichi) ctl.append(btn("リーチ","",()=>enterRiichi(),"r"));
   let firstKan=true;
-  for(const k of (myOptions.kan||[])){ ctl.append(btn((k.type==="ankan"?"暗槓":"加槓")+faceShort(k.tile),"",()=>{ sendWS({t:"action",act:{type:k.type,tile:k.tile}}); myOptions=null; clearControls(); }, firstKan?"k":undefined)); firstKan=false; }
+  for(const k of (myOptions.kan||[])){ ctl.append(callBtn((k.type==="ankan"?"暗槓":"加槓")+faceShort(k.tile),"",()=>{ sendWS({t:"action",act:{type:k.type,tile:k.tile}}); myOptions=null; clearControls(); }, firstKan?"k":undefined)); firstKan=false; }
   // キーボード: カーソルをツモ牌(なければ手牌末尾)に合わせる
   const p=state&&state.players[mySeat];
   handCursor = p ? (p.drawn ? p.hand.length : Math.max(0,p.hand.length-1)) : 0;
@@ -576,10 +579,10 @@ function showReactControls(){
   const opts=pendingReact.options; const tile=pendingReact.tile;
   const types=new Set(opts.map(o=>o.type)); let n=0;
   if(types.has("ron")) ctl.append(btn("ロン","win",()=>react({type:"ron"}),String(++n)));
-  if(types.has("pon")) ctl.append(btn("ポン","",()=>react({type:"pon"}),String(++n)));
-  if(types.has("minkan")) ctl.append(btn("カン","",()=>react({type:"minkan"}),String(++n)));
+  if(types.has("pon")) ctl.append(callBtn("ポン","",()=>react({type:"pon"}),String(++n)));
+  if(types.has("minkan")) ctl.append(callBtn("カン","",()=>react({type:"minkan"}),String(++n)));
   const chi=opts.find(o=>o.type==="chi");
-  if(chi){ if(chi.options.length===1) ctl.append(btn("チー","",()=>react({type:"chi",chi:chi.options[0]}),String(++n))); else chi.options.forEach(o=>ctl.append(btn("チー"+o.map(faceShort).join(""),"",()=>react({type:"chi",chi:o}),String(++n)))); }
+  if(chi){ if(chi.options.length===1) ctl.append(callBtn("チー","",()=>react({type:"chi",chi:chi.options[0]}),String(++n))); else chi.options.forEach(o=>ctl.append(callBtn("チー"+o.map(faceShort).join(""),"",()=>react({type:"chi",chi:o}),String(++n)))); }
   ctl.append(btn("スキップ","skip",()=>react({type:"skip"}),"skip"));
   reactCursor=-1; updateReactCursor();
   flash("⌨ ↑↓←→で選び Enterで決定（数字=直接／Esc=スキップ）",2500);
@@ -591,7 +594,7 @@ function blurInputs(){ const a=document.activeElement; if(a && (a.tagName==="INP
 // 反応ボタン(ポン/チー/カン/ロン/スキップ)の選択ハイライト
 function reactBtns(){ const ctl=document.getElementById("controls"); return ctl?[...ctl.querySelectorAll("button")]:[]; }
 function updateReactCursor(){ const bs=reactBtns(); bs.forEach((b,i)=>b.classList.toggle("kbfocus", i===reactCursor)); }
-function moveReactCursor(d){ const bs=reactBtns(); if(!bs.length)return; if(reactCursor<0) reactCursor=(d>0?0:bs.length-1); else reactCursor=(reactCursor+d+bs.length)%bs.length; updateReactCursor(); }
+function moveReactCursor(d){ const bs=reactBtns(); if(!bs.length)return; bs.forEach(b=>b.classList.remove("armed")); if(reactCursor<0) reactCursor=(d>0?0:bs.length-1); else reactCursor=(reactCursor+d+bs.length)%bs.length; updateReactCursor(); }
 // 上下キー: 2段折り返し時に上段/下段の同じ位置あたりの牌へカーソル移動
 function moveCursorRow(dir){
   const he=document.querySelector('.hand[data-pos="0"]'); if(!he)return;
@@ -606,6 +609,18 @@ function moveCursorRow(dir){
 }
 function keyHint(k){ return k==="skip"?"Esc":k.toUpperCase(); }
 function btn(label,cls,fn,key){ const b=document.createElement("button"); b.className="abtn "+cls; if(key){ b.dataset.key=key; b.innerHTML=escapeHtml(String(label))+'<span class="kh">['+keyHint(key)+']</span>'; } else b.textContent=label; b.onclick=fn; return b; }
+// タップ2段階の鳴きボタン(誤操作防止): 1回目タップ=選択(強調)、同じボタンを2回目タップで実行。
+// キーボード/ホットキー(クリックの detail===0)は従来通り即実行。
+function callBtn(label,cls,fn,key){
+  const b=btn(label,cls,fn,key);
+  b.onclick=(e)=>{
+    if((e && e.detail===0) || b.classList.contains("armed")){ fn(); return; }   // キー操作 or 2回目 → 実行
+    const ctl=b.parentNode; if(ctl) ctl.querySelectorAll(".abtn.armed").forEach(x=>x.classList.remove("armed"));
+    b.classList.add("armed");                                                    // 1回目 → 選択
+    flash("もう一度タップで決定",1400);
+  };
+  return b;
+}
 function flash(t,ms=1400){ const m=document.getElementById("msg"); m.textContent=t; m.classList.add("show"); clearTimeout(flash._t); flash._t=setTimeout(()=>m.classList.remove("show"),ms); }
 // 4人打ち：サイコロで起家(親)決定の演出
 const DICE_FACE=["","⚀","⚁","⚂","⚃","⚄","⚅"];
