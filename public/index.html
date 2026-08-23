@@ -46,10 +46,11 @@
   .seat .wind{color:var(--gold);margin-right:.3vmin;}
   .seat .nm{font-size:1.3vmin;opacity:.8;font-weight:400;}
   .seat .cpu{font-size:1.2vmin;opacity:.65;font-weight:400;}
-  .sc-bottom{left:50%;top:calc(50% + 14vmin);transform:translate(-50%,-50%);}
-  .sc-top{left:50%;top:calc(50% - 14vmin);transform:translate(-50%,-50%);}
-  .sc-left{left:calc(50% - 18.5vmin);top:50%;transform:translate(-50%,-50%);}
-  .sc-right{left:calc(50% + 18.5vmin);top:50%;transform:translate(-50%,-50%);}
+  /* 点数は河(中央十字)の腕の外側の対角に置く */
+  .sc-bottom{left:calc(50% + 20vmin);top:calc(50% + 17.5vmin);transform:translate(-50%,-50%);}  /* 自分=右下 */
+  .sc-right{left:calc(50% + 20vmin);top:calc(50% - 17.5vmin);transform:translate(-50%,-50%);}    /* 下家=右上 */
+  .sc-top{left:calc(50% - 20vmin);top:calc(50% - 17.5vmin);transform:translate(-50%,-50%);}      /* 対面=左上 */
+  .sc-left{left:calc(50% - 20vmin);top:calc(50% + 17.5vmin);transform:translate(-50%,-50%);}     /* 上家=左下 */
   /* 手牌 */
   .hand{position:absolute;display:flex;align-items:flex-end;gap:2px;z-index:7;}
   .hand.bottom{left:50%;bottom:1vmin;transform:translateX(-50%);flex-wrap:nowrap;justify-content:center;max-width:97vw;width:var(--myhw);row-gap:.8vmin;}
@@ -73,10 +74,11 @@
   /* 捨て牌 */
   .discards{position:absolute;display:grid;grid-auto-rows:min-content;gap:1px;z-index:3;grid-template-columns:repeat(6,auto);}
   .discards .tile{width:3.4vmin;height:4.8vmin;}
-  .discards.bottom{left:50%;top:calc(50% + 22vmin);bottom:auto;transform:translateX(-50%);}
-  .discards.top{left:50%;bottom:calc(50% + 22vmin);top:auto;transform:translateX(-50%) rotate(180deg);}
-  .discards.left{left:calc(var(--h) + 1vmin);top:50%;transform:translateY(-50%) rotate(90deg);}
-  .discards.right{right:calc(var(--h) + 1vmin);top:50%;transform:translateY(-50%) rotate(-90deg);}
+  /* 捨て牌は中央の四角に沿わせ、外側(手牌側)へ伸ばす */
+  .discards.bottom{left:50%;top:calc(50% + 8vmin);bottom:auto;transform:translateX(-50%);}
+  .discards.top{left:50%;bottom:calc(50% + 8vmin);top:auto;transform:translateX(-50%) rotate(180deg);}
+  .discards.left{right:calc(50% + 10.5vmin);left:auto;top:50%;transform:translateY(-50%) rotate(90deg);transform-origin:center;}
+  .discards.right{left:calc(50% + 10.5vmin);right:auto;top:50%;transform:translateY(-50%) rotate(-90deg);transform-origin:center;}
   .discards .tile.tsumogiri{opacity:.72;}
   .discards .tile.rdecl{transform:rotate(90deg);margin:0 .8vmin;}
   .discards .tile.last{box-shadow:0 0 0 2px var(--gold);}
