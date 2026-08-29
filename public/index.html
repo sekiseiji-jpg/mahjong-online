@@ -118,6 +118,26 @@
   .sheet h2{color:var(--gold);margin:.2em 0;}
   .sheet input{font:inherit;font-size:2.4vmin;padding:1vmin 1.4vmin;border-radius:8px;border:1px solid #888;width:60%;text-align:center;margin:1vmin 0;}
   .sheet .row{display:flex;gap:1.5vmin;justify-content:center;flex-wrap:wrap;margin-top:1vmin;}
+  /* ルール・役一覧モーダル */
+  #rulesBtn{cursor:pointer;}
+  #rules{position:fixed;inset:0;z-index:160;background:rgba(0,0,0,.72);display:none;
+    align-items:center;justify-content:center;padding:2vmin;}
+  #rules.show{display:flex;}
+  #rules .rules-sheet{width:min(92vw,640px);max-height:90vh;display:flex;flex-direction:column;text-align:left;padding:2.4vmin 2.8vmin;}
+  #rules h2{margin:0 0 1vmin;text-align:center;color:var(--gold);font-size:3vmin;}
+  #rules .rules-body{overflow-y:auto;padding-right:.6vmin;-webkit-overflow-scrolling:touch;}
+  #rules section{margin-bottom:1.8vmin;}
+  #rules h3{margin:0 0 .6vmin;color:#ffe08a;font-size:2.1vmin;border-bottom:1px solid rgba(255,255,255,.16);padding-bottom:.3vmin;}
+  #rules h3 .han{color:var(--gold);font-size:1.7vmin;margin-left:.4vmin;}
+  #rules h3 .han.y{color:#ff8a5c;}
+  #rules h3 .note{color:#9fd8b0;font-size:1.4vmin;font-weight:400;margin-left:.4vmin;}
+  #rules ul{margin:.3vmin 0;padding-left:2.4vmin;font-size:1.85vmin;line-height:1.6;}
+  #rules ul li{margin:.3vmin 0;}
+  #rules table.yk{width:100%;border-collapse:collapse;font-size:1.8vmin;}
+  #rules table.yk td{padding:.4vmin .5vmin;border-bottom:1px dashed rgba(255,255,255,.12);vertical-align:top;}
+  #rules table.yk td:first-child{width:42%;color:#fff;font-weight:700;white-space:nowrap;}
+  #rules table.yk td:last-child{color:#cfe6d5;}
+  #rules b{color:#ffe08a;}
   .seatctl{display:flex;gap:.6vmin;justify-content:center;flex-wrap:wrap;margin:1vmin 0;font-size:1.7vmin;}
   .seatctl .chip{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:.4vmin 1vmin;cursor:pointer;}
   .final-table{width:100%;border-collapse:collapse;margin:1vmin 0;font-size:2.2vmin;}
@@ -199,7 +219,7 @@
   <div id="board" style="display:none">
     <div id="topbar">
       <div><span id="roundLbl">東1局</span> <span class="num" id="wallLbl">70</span>枚 <span id="roomLbl" style="color:var(--gold);margin-left:1vmin"></span></div>
-      <div><button id="voiceBtn" title="音声通話">🎤</button> <button id="chatBtn" title="スタンプ・チャット">💬</button> <button id="muteBtn" title="音のオン/オフ (M)">🔊</button> <button id="seatBtn">席</button> <button id="leaveBtn">退出</button></div>
+      <div><button id="rulesBtn" title="ルール・役一覧">📖</button> <button id="voiceBtn" title="音声通話">🎤</button> <button id="chatBtn" title="スタンプ・チャット">💬</button> <button id="muteBtn" title="音のオン/オフ (M)">🔊</button> <button id="seatBtn">席</button> <button id="leaveBtn">退出</button></div>
     </div>
     <div id="center"></div>
     <div class="discards bottom" data-pos="0"></div><div class="discards right" data-pos="1"></div>
@@ -276,6 +296,87 @@
 
 <div class="overlay" id="result"><div class="sheet" id="resultSheet"></div></div>
 <div class="overlay" id="seatModal"><div class="sheet" id="seatSheet"></div></div>
+
+<div id="rules"><div class="sheet rules-sheet">
+  <h2>ルール・役一覧</h2>
+  <div class="rules-body">
+    <section>
+      <h3>遊び方（基本）</h3>
+      <ul>
+        <li>手牌14枚で <b>「面子（3枚組）×4＋雀頭（対子）×1」</b> を作れば和了。例外は <b>七対子</b>（対子7組）と <b>国士無双</b>。</li>
+        <li>自分のツモで完成＝<b>ツモ</b>／他家の捨て牌で完成＝<b>ロン</b>。</li>
+        <li>和了には最低1つの<b>役</b>が必要（ドラだけでは和了れません）。</li>
+        <li>あがれずに山が尽きると<b>流局</b>。テンパイなら聴牌料を受け取れます。</li>
+      </ul>
+    </section>
+    <section>
+      <h3>役 <span class="han">1飜</span></h3>
+      <table class="yk">
+        <tr><td>立直（リーチ）</td><td>門前でテンパイ時に宣言（1000点供託）</td></tr>
+        <tr><td>一発</td><td>リーチ後1巡以内に和了</td></tr>
+        <tr><td>門前清自摸和（ツモ）</td><td>門前でツモ和了</td></tr>
+        <tr><td>断么九（タンヤオ）</td><td>2〜8の数牌のみ</td></tr>
+        <tr><td>平和（ピンフ）</td><td>全て順子＋役なし雀頭＋両面待ち（門前）</td></tr>
+        <tr><td>一盃口</td><td>同じ順子が2組（門前）</td></tr>
+        <tr><td>役牌</td><td>白/發/中・自風・場風の刻子</td></tr>
+        <tr><td>海底摸月／河底撈魚</td><td>最後の牌（ツモ/ロン）で和了</td></tr>
+        <tr><td>嶺上開花</td><td>カンの補充牌で和了</td></tr>
+        <tr><td>槍槓</td><td>他家の加槓牌でロン</td></tr>
+      </table>
+    </section>
+    <section>
+      <h3>役 <span class="han">2飜</span> <span class="note">※=鳴くと1飜（食い下がり）</span></h3>
+      <table class="yk">
+        <tr><td>ダブル立直</td><td>配牌直後の第一打でリーチ</td></tr>
+        <tr><td>三色同順 ※</td><td>同じ並びの順子を3色</td></tr>
+        <tr><td>一気通貫 ※</td><td>同色で 123・456・789</td></tr>
+        <tr><td>混全帯么九（チャンタ）※</td><td>全ての面子・雀頭に么九牌を含む</td></tr>
+        <tr><td>七対子</td><td>対子7組（門前のみ・25符固定）</td></tr>
+        <tr><td>対々和</td><td>刻子4つ</td></tr>
+        <tr><td>三暗刻</td><td>暗刻3つ</td></tr>
+        <tr><td>三色同刻</td><td>同じ数字の刻子を3色</td></tr>
+        <tr><td>三槓子</td><td>カン3つ</td></tr>
+        <tr><td>混老頭</td><td>么九牌（1・9・字牌）のみ</td></tr>
+        <tr><td>小三元</td><td>三元牌の2種を刻子＋残り1種を雀頭</td></tr>
+      </table>
+    </section>
+    <section>
+      <h3>役 <span class="han">3飜以上</span></h3>
+      <table class="yk">
+        <tr><td>二盃口</td><td>一盃口が2組（門前・3飜）</td></tr>
+        <tr><td>純全帯么九（純チャン）※</td><td>全ての面子・雀頭に老頭牌(1/9)を含む（3飜／鳴き2飜）</td></tr>
+        <tr><td>混一色 ※</td><td>1色の数牌＋字牌（3飜／鳴き2飜）</td></tr>
+        <tr><td>清一色 ※</td><td>1色の数牌のみ（6飜／鳴き5飜）</td></tr>
+      </table>
+    </section>
+    <section>
+      <h3>役満 <span class="han y">13飜</span></h3>
+      <table class="yk">
+        <tr><td>国士無双</td><td>么九牌13種＋いずれか1枚（十三面待ちは<b>ダブル役満</b>）</td></tr>
+        <tr><td>四暗刻</td><td>暗刻4つ（単騎待ちは<b>ダブル役満</b>）</td></tr>
+        <tr><td>大三元</td><td>白・發・中すべて刻子</td></tr>
+        <tr><td>字一色</td><td>字牌のみ</td></tr>
+        <tr><td>緑一色</td><td>緑の牌のみ（2・3・4・6・8索と發）</td></tr>
+        <tr><td>清老頭</td><td>1と9の数牌のみ</td></tr>
+        <tr><td>九蓮宝燈</td><td>同色で特定形（純正は<b>ダブル役満</b>）</td></tr>
+        <tr><td>四槓子</td><td>カン4つ</td></tr>
+        <tr><td>小四喜</td><td>風牌の3種を刻子＋残り1種を雀頭</td></tr>
+        <tr><td>大四喜</td><td>風牌4種すべて刻子（<b>ダブル役満</b>）</td></tr>
+      </table>
+    </section>
+    <section>
+      <h3>ドラ・点数・鳴き・フリテン</h3>
+      <ul>
+        <li><b>ドラ</b>：表ドラ・裏ドラ（リーチ和了時）・赤5・槓ドラ。<b>飜は増えるが役にはならない</b>。</li>
+        <li><b>点数</b>：符×飜で決定。満貫→跳満→倍満→三倍満→役満と上がる。親は約1.5倍。</li>
+        <li><b>鳴き</b>（ポン/チー/カン）：門前でなくなり、リーチ・平和・門前ツモ等が付かない。一部の役は<b>食い下がり</b>。</li>
+        <li><b>フリテン</b>：自分の待ち牌が自分の河にあるとロン不可（ツモは可）。</li>
+        <li><b>その他</b>：割れ目（サイコロで倍づけ）、流し満貫、途中流局（九種九牌など）にも対応。</li>
+      </ul>
+    </section>
+  </div>
+  <div class="row"><button class="abtn" onclick="toggleRules(false)">閉じる</button></div>
+</div></div>
 
 <script>
 "use strict";
@@ -404,12 +505,22 @@ document.getElementById("autoBtn").onclick=()=>{ audioKick(); const n=document.g
 document.getElementById("leaveBtn").onclick=()=>{ sendWS({t:"leave"}); location.reload(); };
 document.getElementById("seatBtn").onclick=showSeatModal;
 document.getElementById("muteBtn").onclick=toggleMute;
+// ルール・役一覧
+function toggleRules(force){
+  const el=document.getElementById("rules");
+  el.classList.toggle("show", force===undefined? !el.classList.contains("show") : force);
+  if(el.classList.contains("show")) el.querySelector(".rules-body").scrollTop=0;
+}
+document.getElementById("rulesBtn").onclick=()=>toggleRules(true);
+document.getElementById("rules").addEventListener("click", e=>{ if(e.target.id==="rules") toggleRules(false); });
 window.addEventListener("keydown",e=>{ if((e.key==="m"||e.key==="M") && document.activeElement && document.activeElement.tagName!=="INPUT"){ toggleMute(); } });
 // ---- キーボード操作(打牌/鳴き/和了) ----
 window.addEventListener("keydown",e=>{
   const ae=document.activeElement;
   if(ae && (ae.tagName==="INPUT"||ae.tagName==="TEXTAREA")) return;   // 文字入力中は無効
   if(e.ctrlKey||e.metaKey||e.altKey) return;
+  // ルール一覧表示中はEscで閉じ、他キーは通さない
+  if(document.getElementById("rules").classList.contains("show")){ if(e.key==="Escape"||e.key==="Enter"){ e.preventDefault(); toggleRules(false); } return; }
   // 結果画面: Enterで「次へ」
   if(document.getElementById("result").classList.contains("show")){
     if(e.key==="Enter"){ const rb=document.getElementById("readyBtn"); if(rb){e.preventDefault();rb.click();} }
