@@ -138,6 +138,29 @@
   #rules table.yk td:first-child{width:42%;color:#fff;font-weight:700;white-space:nowrap;}
   #rules table.yk td:last-child{color:#cfe6d5;}
   #rules b{color:#ffe08a;}
+  /* 初心者向け解説(牌の例・注意点) */
+  #rules p{font-size:1.8vmin;line-height:1.6;margin:.4vmin 0;color:#e8f0ea;}
+  #rules .sub{color:#9fd8b0;font-size:1.5vmin;margin:.3vmin 0 .2vmin;}
+  #rules .note2{color:#9fd8b0;font-size:1.4vmin;font-weight:400;}
+  #rules .yrow{margin:.7vmin 0;padding:.6vmin .8vmin;background:rgba(255,255,255,.045);border-radius:8px;}
+  #rules .yhd{display:flex;align-items:baseline;gap:.8vmin;flex-wrap:wrap;}
+  #rules .ynm{font-weight:700;color:#fff;font-size:1.9vmin;}
+  #rules .yhan{color:var(--gold);font-size:1.5vmin;font-weight:700;}
+  #rules .ydesc{color:#cfe6d5;font-size:1.7vmin;margin-top:.2vmin;line-height:1.5;}
+  #rules .egrow{display:flex;align-items:center;gap:1vmin;margin:.6vmin 0;flex-wrap:wrap;}
+  #rules .egl{color:#ffe08a;font-size:1.6vmin;font-weight:700;}
+  #rules .yeg{margin-top:.5vmin;}
+  #rules .eg{display:inline-flex;align-items:center;gap:.25vmin;flex-wrap:wrap;}
+  #rules .eg-t{width:3.2vmin;height:4.4vmin;flex:0 0 auto;box-shadow:0 .1vmin .2vmin rgba(0,0,0,.4);}
+  #rules .eg-sp{width:1.3vmin;}
+  #rules .eg-plus{color:#ffe08a;margin:0 .2vmin;font-weight:700;font-size:1.8vmin;}
+  #rules .rnote{margin-top:.5vmin;padding:.4vmin .8vmin;background:rgba(255,180,60,.12);border-left:.4vmin solid #ffb43c;border-radius:4px;color:#ffe0b0;font-size:1.55vmin;line-height:1.5;}
+  @media (max-aspect-ratio:1/1){
+    #rules p{font-size:2.7vmin;} #rules .sub{font-size:2.3vmin;} #rules .ynm{font-size:2.9vmin;}
+    #rules .yhan{font-size:2.3vmin;} #rules .ydesc{font-size:2.6vmin;} #rules .rnote{font-size:2.4vmin;}
+    #rules .egl{font-size:2.5vmin;} #rules .note2{font-size:2.2vmin;} #rules h3{font-size:3vmin;}
+    #rules .eg-t{width:5.2vmin;height:7vmin;} #rules .eg-sp{width:2vmin;}
+  }
   .seatctl{display:flex;gap:.6vmin;justify-content:center;flex-wrap:wrap;margin:1vmin 0;font-size:1.7vmin;}
   .seatctl .chip{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:.4vmin 1vmin;cursor:pointer;}
   .final-table{width:100%;border-collapse:collapse;margin:1vmin 0;font-size:2.2vmin;}
@@ -299,7 +322,7 @@
 
 <div id="rules"><div class="sheet rules-sheet">
   <h2>ルール・役一覧</h2>
-  <div class="rules-body">
+  <div class="rules-body" id="rulesBody">
     <section>
       <h3>遊び方（基本）</h3>
       <ul>
@@ -511,8 +534,80 @@ document.getElementById("muteBtn").onclick=toggleMute;
 // ルール・役一覧
 function toggleRules(force){
   const el=document.getElementById("rules");
-  el.classList.toggle("show", force===undefined? !el.classList.contains("show") : force);
-  if(el.classList.contains("show")) el.querySelector(".rules-body").scrollTop=0;
+  const show = force===undefined? !el.classList.contains("show") : force;
+  if(show) buildRules();
+  el.classList.toggle("show", show);
+  if(show) el.querySelector(".rules-body").scrollTop=0;
+}
+// ===== 初心者向けルール解説の生成(牌の例つき) =====
+function ruleTiles(arr){ let h='<span class="eg">'; for(const x of arr){ if(x==="|"){h+='<span class="eg-sp"></span>';continue;} if(x==="+"){h+='<span class="eg-plus">＋</span>';continue;} h+='<span class="tile eg-t">'+svgFace(x,false,false)+'</span>'; } return h+'</span>'; }
+function rNote(t){ return '<div class="rnote">⚠ '+t+'</div>'; }
+function ykCard(name,han,desc,tiles,caution){ let h='<div class="yrow"><div class="yhd"><span class="ynm">'+name+'</span>'+(han?'<span class="yhan">'+han+'</span>':'')+'</div><div class="ydesc">'+desc+'</div>'; if(tiles)h+='<div class="yeg">'+ruleTiles(tiles)+'</div>'; if(caution)h+=rNote(caution); return h+'</div>'; }
+let _rulesBuilt=false;
+function buildRules(){
+  if(_rulesBuilt) return;
+  const body=document.getElementById('rulesBody'); if(!body||typeof svgFace!=='function') return;
+  const m=n=>n-1,p=n=>8+n,s=n=>17+n, TON=27,NAN=28,SHA=29,PEI=30,HAK=31,HAT=32,CHU=33;
+  let H='';
+  H+='<section><h3>1. 麻雀の目的</h3><p>手牌は13枚。順番に1枚引いて1枚捨てるのを繰り返し、<b>「面子（3枚のまとまり）×4 ＋ 雀頭（同じ2枚）×1」＝14枚</b>を先に完成させたら「和了（アガリ）」です。</p>';
+  H+='<div class="egrow"><span class="egl">完成例</span>'+ruleTiles([m(1),m(2),m(3),"|",p(4),p(5),p(6),"|",s(7),s(8),s(9),"|",CHU,CHU,CHU,"|",HAT,HAT])+'</div>';
+  H+='<div class="sub">123萬 ・ 456筒 ・ 789索 ・ 中中中（刻子）・ 發發（雀頭）</div></section>';
+  H+='<section><h3>2. 部品の種類</h3>';
+  H+=ykCard("順子（シュンツ）","",'同じ種類で数が連続する3枚。',[m(3),m(4),m(5)],'字牌（東南西北白發中）は順子にできません。9の次に1はつながりません。');
+  H+=ykCard("刻子（コーツ）","",'まったく同じ牌3枚。',[p(5),p(5),p(5)],null);
+  H+=ykCard("槓子（カンツ）","",'同じ牌4枚。「カン」で作ります。',[s(7),s(7),s(7),s(7)],null);
+  H+=ykCard("雀頭（アタマ）","",'同じ牌2枚。手に1つだけ必要。',[HAK,HAK],null);
+  H+='</section>';
+  H+='<section><h3>3. アガリ方</h3><p><b>ツモ</b>＝自分で引いて完成／<b>ロン</b>＝他家の捨て牌で完成。</p>';
+  H+=rNote('アガるには「役」が最低1つ必要。ドラだけではアガれません。');
+  H+=rNote('<b>フリテン</b>：自分の待ち牌が自分の捨て牌の中にあると、ロンできません（ツモはOK）。');
+  H+='</section>';
+  H+='<section><h3>4. 鳴き（ポン・チー・カン）</h3>';
+  H+=ykCard("ポン","",'手に同じ2枚あるとき、他家が捨てた同じ牌をもらって刻子に。',[HAT,HAT,"+",HAT],null);
+  H+=ykCard("チー","",'手に連続2枚あるとき、上家（左どなり）が捨てた牌をもらって順子に。上家からのみ。',[p(2),p(3),"+",p(1)],null);
+  H+=ykCard("カン","",'同じ4枚で作る。ドラが1枚増えます。',[s(7),s(7),s(7),s(7)],null);
+  H+=rNote('鳴くと「門前（メンゼン）」でなくなり、<b>リーチ・門前ツモ・平和などが付きません</b>。三色・一通・混一・清一などは飜が1つ下がります（食い下がり）。');
+  H+='</section>';
+  H+='<section><h3>5. リーチ</h3><p>門前でテンパイ（あと1枚でアガリ）したら宣言し、1000点を場に出します。裏ドラ・一発のチャンス。<br><b>ダブル立直</b>＝配牌後の第一打でリーチ（2飜）。</p>';
+  H+=rNote('リーチ後は、引いた牌をそのまま捨てるだけ（手を変えられません）。');
+  H+='</section>';
+  H+='<section><h3>6. よく出る役　<span class="han">1飜</span></h3>';
+  H+=ykCard("立直（リーチ）","1飜",'上記の通り。門前限定。',null,null);
+  H+=ykCard("一発","1飜",'リーチ後、1巡以内にアガリ。',null,'間に誰かが鳴くと消えます。');
+  H+=ykCard("門前清自摸和（ツモ）","1飜",'門前でツモアガリ。',null,null);
+  H+=ykCard("断么九（タンヤオ）","1飜",'2〜8の数牌だけで作る。',[m(2),m(3),m(4),"|",p(5),p(6),p(7),"|",s(4),s(5),s(6),"|",s(6),s(6),s(6),"|",p(8),p(8)],'1・9・字牌を1枚でも含むと不成立。');
+  H+=ykCard("平和（ピンフ）","1飜",'全部が順子＋役牌でない雀頭＋両面待ち（門前）。',[m(2),m(3),m(4),"|",p(3),p(4),p(5),"|",s(6),s(7),s(8),"|",p(7),p(8),"|",m(6),m(6)],'刻子があると不成立。雀頭が役牌（三元牌・自風・場風）でも不成立。');
+  H+=ykCard("役牌（ヤクハイ）","1飜",'白・發・中、または自分の風・場の風の刻子。',[HAT,HAT,HAT],'役でない風（客風）の刻子は役になりません。');
+  H+=ykCard("一盃口（イーペーコー）","1飜",'まったく同じ順子が2組（門前のみ）。',[p(2),p(3),p(4),"|",p(2),p(3),p(4)],null);
+  H+='</section>';
+  H+='<section><h3>7. 役　<span class="han">2飜</span>　<span class="note2">※=鳴くと1飜</span></h3>';
+  H+=ykCard("三色同順 ※","2飜",'同じ並びの順子を3色そろえる。',[m(3),m(4),m(5),"|",p(3),p(4),p(5),"|",s(3),s(4),s(5)],null);
+  H+=ykCard("一気通貫 ※","2飜",'同じ色で 123・456・789。',[s(1),s(2),s(3),"|",s(4),s(5),s(6),"|",s(7),s(8),s(9)],null);
+  H+=ykCard("対々和（トイトイ）","2飜",'刻子4つ＋雀頭。',[m(3),m(3),m(3),"|",p(6),p(6),p(6),"|",s(9),s(9),s(9),"|",TON,TON,TON,"|",HAK,HAK],null);
+  H+=ykCard("七対子（チートイツ）","2飜",'対子（同じ2枚）を7組（門前・25符固定）。',[m(2),m(2),"|",p(5),p(5),"|",s(8),s(8),"|",TON,TON,"|",HAK,HAK,"|",HAT,HAT,"|",CHU,CHU],'同じ牌4枚を2組ぶんに数えるのはNG。');
+  H+=ykCard("混全帯么九（チャンタ）※","2飜",'すべての面子と雀頭に么九牌（1・9・字牌）を含む。',[m(1),m(2),m(3),"|",s(7),s(8),s(9),"|",PEI,PEI,PEI,"|",HAK,HAK,HAK,"|",p(9),p(9)],null);
+  H+=ykCard("小三元","2飜",'白・發・中のうち2種を刻子、残り1種を雀頭。',[HAK,HAK,HAK,"|",HAT,HAT,HAT,"|",CHU,CHU],null);
+  H+=ykCard("三暗刻 / 混老頭 / 三色同刻 / 三槓子","2飜",'鳴いていない刻子3つ／么九のみ／同じ数の刻子を3色／カン3つ。',null,null);
+  H+='</section>';
+  H+='<section><h3>8. 役　<span class="han">3飜以上</span></h3>';
+  H+=ykCard("混一色（ホンイツ）※","3飜/鳴き2飜",'1色の数牌＋字牌だけで作る。',[s(2),s(3),s(4),"|",s(6),s(7),s(8),"|",s(9),s(9),s(9),"|",HAT,HAT,HAT,"|",TON,TON],null);
+  H+=ykCard("清一色（チンイツ）※","6飜/鳴き5飜",'1色の数牌だけ（字牌なし）。',[p(1),p(1),p(2),"|",p(3),p(4),p(5),"|",p(5),p(6),p(7),"|",p(7),p(8),p(9),"|",p(9),p(9)],null);
+  H+=ykCard("二盃口 / 純全帯么九（純チャン）","3飜",'一盃口が2組（門前）／全ての面子と雀頭に1か9を含む（字牌なし・※鳴き2飜）。',null,null);
+  H+='</section>';
+  H+='<section><h3>9. 役満　<span class="han y">最高点</span></h3>';
+  H+=ykCard("国士無双","役満",'1・9・字牌の13種を1枚ずつ＋どれか1枚（門前）。',[m(1),m(9),"|",p(1),p(9),"|",s(1),s(9),"|",TON,NAN,SHA,PEI,"|",HAK,HAT,CHU],'13種すべて必要。1種でも欠けると不成立。');
+  H+=ykCard("大三元","役満",'白・發・中すべて刻子。',[HAK,HAK,HAK,"|",HAT,HAT,HAT,"|",CHU,CHU,CHU],null);
+  H+=ykCard("四暗刻","役満",'鳴いていない刻子4つ（門前）。',null,null);
+  H+=ykCard("字一色 / 緑一色 / 清老頭","役満",'字牌だけ／緑の牌(2・3・4・6・8索と發)だけ／1と9だけ。',null,null);
+  H+=ykCard("九蓮宝燈 / 四槓子 / 大四喜・小四喜","役満",'特定の清一色形／カン4つ／風牌を集める。',null,null);
+  H+=ykCard("天和 / 地和","役満",'親の第一ツモ／子の第一ツモでアガリ（鳴きが入る前）。',null,null);
+  H+=rNote('<b>人和</b>：子が第一巡（自分のツモ前）のロンでアガリ＝<b>満貫</b>（役満ではありません）。');
+  H+='</section>';
+  H+='<section><h3>10. ドラ・点数</h3><p><b>ドラ</b>：「ドラ表示牌」の次の牌がドラ。持っていると飜が増えます（赤い5もドラ）。裏ドラはリーチしてアガった時だけ。</p>';
+  H+=rNote('ドラは点数を上げますが<b>「役」ではありません</b>。ドラだけではアガれません。');
+  H+='<p><b>点数</b>：符×飜で決まり、満貫→跳満→倍満→三倍満→役満と上がります。親は約1.5倍。</p></section>';
+  body.innerHTML=H;
+  _rulesBuilt=true;
 }
 document.getElementById("rulesBtn").onclick=()=>toggleRules(true);
 document.getElementById("rules").addEventListener("click", e=>{ if(e.target.id==="rules") toggleRules(false); });
