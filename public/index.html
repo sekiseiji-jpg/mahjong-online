@@ -171,6 +171,13 @@
   .yaku-list{list-style:none;padding:0;font-size:2vmin;text-align:left;max-width:40vmin;margin:1vmin auto;}
   .yaku-list li{display:flex;justify-content:space-between;border-bottom:1px dashed rgba(255,255,255,.15);padding:.2vmin 0;}
   .yaku-list .han{color:var(--gold);}
+  /* 上がり画面のドラ表示牌 */
+  .dora-reveal{margin:1vmin auto;padding:1vmin;border-radius:10px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.12);max-width:48vmin;}
+  .dr-row{display:flex;align-items:center;justify-content:center;gap:1vmin;margin:.4vmin 0;}
+  .dr-row .dl{font-size:2vmin;font-weight:800;color:var(--gold);min-width:12vmin;text-align:right;}
+  .dr-row .dl.ura{color:#7fd0ff;}
+  .dr-row .dts{display:inline-flex;gap:.4vmin;}
+  .dr-note{text-align:center;font-size:1.5vmin;opacity:.7;margin-top:.5vmin;}
   #status{position:absolute;left:1vmin;bottom:1vmin;z-index:8;font-size:1.4vmin;opacity:.7;}
   #topbar #muteBtn.off{background:rgba(200,60,60,.3);border-color:rgba(255,120,120,.55);}
   #topbar #voiceBtn.on{background:rgba(60,200,110,.38);border-color:rgba(120,255,160,.65);}
@@ -929,6 +936,13 @@ function showResult(r){
     h+=`<span style="width:1vmin"></span><div class="tile winpulse" style="width:4vmin;height:5.6vmin">${svgFace(w.winTile,false,false)}</div></div>`;
     h+='<ul class="yaku-list">'; for(const y of w.yaku) h+=`<li><span>${y.name}</span><span class="han">${w.yakuman?"役満":y.han+"飜"}</span></li>`; h+='</ul>';
     h+=`<div style="font-size:3vmin;font-weight:800">${w.yakuman?"役満":w.han+"飜"+w.fu+"符"} <span style="color:var(--gold)">${w.total}点</span></div>`;
+    // ドラ表示牌・裏ドラ表示牌(リーチ和了時のみ裏を公開)
+    const dtile=t=>`<div class="tile" style="width:4vmin;height:5.6vmin">${svgFace(t.t,t.aka,false)}</div>`;
+    h+='<div class="dora-reveal"><div class="dr-row"><span class="dl">ドラ表示</span><span class="dts">';
+    for(const t of (r.dora||[])) h+=dtile(t);
+    h+='</span></div>';
+    if(r.riichiWin && r.ura){ h+='<div class="dr-row"><span class="dl ura">裏ドラ表示</span><span class="dts">'; for(const t of r.ura) h+=dtile(t); h+='</span></div>'; }
+    h+='<div class="dr-note">※表示牌の「次」の牌がドラ（例: 表示が三萬ならドラは四萬）</div></div>';
   } else { h+=`<h2>${r.kind==="nagashi"?"流し満貫":"流局"}</h2>`; h+='<div>'+state.players.map(p=>`${p.name}: ${(r.tenpai||[]).includes(p.seat)?"テンパイ":"ノーテン"}`).join(" / ")+'</div>'; }
   h+='<table class="final-table">'; for(const p of state.players){ const d=r.deltas[p.seat]; h+=`<tr class="${p.seat===mySeat?"me":""}"><td>${p.name}</td><td style="color:${d>0?"#7fffa0":d<0?"#ff8a8a":"#fff"}">${d>0?"+"+d:d}</td><td>${r.scores[p.seat]}</td></tr>`; } h+='</table>';
   h+='<div class="row">'+(replayFrames.length?'<button class="abtn skip" id="replayBtn">🔁 この局をリプレイ</button>':'')+'<button class="abtn" id="readyBtn">次へ</button></div>';

@@ -553,7 +553,9 @@ class Table {
       melds: this.G.players[w.seat].melds.map(m => this._meld(m)),
       winTile: w.res.winTile,
     }));
+    if (this.G.doraIndicators) out.dora = this.G.doraIndicators.map(d => this._tile(d));
     if (this.G.uraIndicators) out.ura = this.G.uraIndicators.map(d => this._tile(d));
+    out.riichiWin = !!(r.winners && r.winners.some(w => this.G.players[w.seat] && this.G.players[w.seat].riichi));
     return out;
   }
   // seat 視点の完全状態(自分の手牌は見える/他家は枚数のみ)
